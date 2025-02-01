@@ -1,6 +1,10 @@
 "use strict";
 require('express-async-errors');
 const express = require('express');
+const cors = require('cors');
+const session = require('express-session');
+const passport = require('passport');
+require('./config/passportConfig');
 
 // database
 const connectDB = require('./config/db');
@@ -16,9 +20,30 @@ const notFoundMiddleware = require('./middleware/not-found');
 const authRouter = require('./routes/auth');
 
 const app = express();
+
+// Middlewares
 app.use(express.json());
 
+const corsOptions = {
+    credentials: true,
+}
+app.use(cors(corsOptions));
+
+app.use(session({
+    secret: config.sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        maxAge: 1000 * 60 * 60,
+    }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+
 app.use('/api/v1/auth', authRouter);
+
 app.use(errorHandlerMiddleware);
 app.use(notFoundMiddleware);
 
@@ -30,7 +55,7 @@ const start = async () => {
             console.log(`Server is running on port ${config.port}`);
         });
     }
-    catch {
+    catch (err){
         console.error(err);
     }
 }

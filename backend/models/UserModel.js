@@ -18,7 +18,14 @@ const UserSchema = new mongoose.Schema({
     password: {
         type: String,
         required: [true, 'Please provide a password'],
-    }
+    },
+    isMfaActive: {
+        type: Boolean,
+        default: false,
+    },
+    mfaSecret: {
+        type: String,
+    },
 }, { timestamps: true});
 
 
