@@ -12,5 +12,6 @@ module.exports = {
     smtpHost: process.env.SMTP_HOST,
     smtpPort: process.env.SMTP_PORT,
     emailUser: process.env.EMAIL_USER,
-    emailPass: process.env.EMAIL_PASS
+    emailPass: process.env.EMAIL_PASS,
+    clientURI: process.env.CLIENT_URI,
 }

@@ -3,6 +3,8 @@ const User = require("../models/UserModel");
 const { StatusCodes } = require("http-status-codes");
 const speakeasy = require("speakeasy");
 const qrcode = require("qrcode");
+const crypto = require("crypto");
+const config = require("../config/env");
 
 const { createTokenForUser } = require("../utils/authentication");
 const sendMail = require("../utils/sendMail");
@@ -118,7 +120,7 @@ const setupMfa = async (req, res) => {
   ];
 
   await sendMail(
-    "alexwalker070800@gmail.com",
+    user.email,
     emailSubject,
     emailBody,
     attachments
@@ -168,6 +170,43 @@ const resetMfa = async (req, res) => {
   res.status(StatusCodes.OK).json({ message: "MFA reset successfully" });
 };
 
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new BadRequestError("User not found");
+  }
+  const resetToken = user.getResetPasswordToken();
+  await user.save();
+  const resetUri = `${config.clientURI}/resetpassword/${resetToken}`;
+  const message = `
+    <h1>You have requested a password reset</h1>
+    <p>Please go to this link to reset your password</p>
+    <a href=${resetUri} clicktracking=off>${resetUri}</a>
+  `;
+  const subject = "Password reset request - Stock-Smith";
+  await sendMail(user.email, subject, message);
+  res.status(StatusCodes.OK).json({ message: "Email sent" });
+}
+
+const resetPassword = async(req, res) => {
+  const { resetToken } = req.params;
+  const { password } = req.body;
+  const resetPasswordToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+  const user = await User.findOne({
+    resetPasswordToken,
+    resetPasswordExpire: { $gt: Date.now() },
+  });
+  if (!user) {
+    throw new BadRequestError("Invalid reset token");
+  }
+  user.password = password;
+  user.resetPasswordToken = null;
+  user.resetPasswordExpire = null;
+  await user.save();
+  res.status(StatusCodes.OK).json({ message: "Password reset successfully" });
+}
+
 module.exports = {
   register,
   login,
@@ -176,4 +215,6 @@ module.exports = {
   setupMfa,
   verifyMfa,
   resetMfa,
+  forgotPassword,
+  resetPassword
 };
