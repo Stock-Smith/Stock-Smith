@@ -25,9 +25,13 @@ const app = express();
 app.use(express.json());
 
 const corsOptions = {
+    origin: 'http://localhost:5173', // Replace with your frontend origin
     credentials: true,
-}
-app.use(cors(corsOptions));
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+ app.use(cors(corsOptions));
+//app.use(cors());
 
 app.use(session({
     secret: config.sessionSecret,
