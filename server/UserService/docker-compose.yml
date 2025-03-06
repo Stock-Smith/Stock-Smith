@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - JWT_SECRET=d2f12c175e0cbcc20f05f60f0f9da230e9c1a1294e9f70b7024cfd95d4421d777c510cb5c51588398b733ec709bb0e4436e53b492ace27d4555dd8619f61b0429901077c3a5b6ef841d0d93bad9e4551d6d57de1c714110e64d50b44aec04532980b6d1f5d2569992eb6803faf43ec78971e8798f7b1257b55d4f501c5c4475796ff10475be288728afde643bdeffc08e5ab0042ecc8f74693ae73b491aeb79177174379a4029530915f2abb678c604f507ccdc017e95abeca25601c63e74c3697ce0b78ded276468f2f900f2ad3534c33b2b8396180d23c8c5ad0d7e7be81a3e1d13498969a38c040b3f24748d41f6d3730fe7a923940e9858cad86b25c1eca
+      - SESSION_SECRET=ab9ee7d71226333e3fbd5fe8171eb9991e02394e98ed016f2729782668f7a4e2
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=465
+      - EMAIL_USER=stock.smith.ai@gmail.com
+      - EMAIL_PASS=xrgr acmh zaaf kcfp
+      - CLIENT_URI=http://localhost:3000
+      # Use the local MongoDB service when running in Docker
+      - MONGO_DB_URI=mongodb://mongodb:27017/stock_prediction
+      # Keep Atlas URI as alternative/backup
+      - MONGO_DB_ATLAS_URI=mongodb+srv://animeshkumar0715:p8LASaBL01ghbJHS@stock-smith.zagsw.mongodb.net/?retryWrites=true&w=majority&appName=Stock-Smith
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:
