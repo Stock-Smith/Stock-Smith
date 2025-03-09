@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  user-service:
+    build:
+      context: ./UserService  # Assumes your UserService is in this directory
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./UserService/.env
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+
+  news-service:
+    build:
+      context: ./NewsService  # Assumes your NewsService is in this directory
+    restart: always
+    ports:
+      - "8002:8002"
+    env_file:
+      - ./NewsService/.env
+    networks:
+      - app-network
+
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
