@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Razorpay Payment Integration</title>
+    <!-- Bootstrap CSS (optional) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-top: 50px;
+        }
+        .payment-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .payment-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .btn-pay {
+            background-color: #3399cc;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.3s;
+        }
+        .btn-pay:hover {
+            background-color: #2980b9;
+        }
+        .payment-logo {
+            width: 180px;
+            margin-bottom: 15px;
+        }
+        .status-message {
+            display: none;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="payment-container">
+            <div class="payment-header">
+                <img src="https://razorpay.com/assets/razorpay-glyph.svg" alt="Razorpay" class="payment-logo">
+                <h2>Checkout</h2>
+                <p>Complete your purchase securely with Razorpay</p>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="name">Name</label>
+                        <input type="text" class="form-control" id="name" placeholder="Enter your name">
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" class="form-control" id="email" placeholder="Enter your email">
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="tel" class="form-control" id="phone" placeholder="Enter your phone number">
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="amount">Amount (₹)</label>
+                        <input type="number" class="form-control" id="amount" value="100" min="1">
+                    </div>
+                </div>
+                <div class="col-md-12">
+                    <button class="btn-pay" id="payButton">Pay Now</button>
+                </div>
+            </div>
+
+            <div id="successMessage" class="status-message status-success">
+                Payment successful! Your order has been placed.
+            </div>
+            <div id="errorMessage" class="status-message status-error">
+                Payment failed. Please try again or contact support.
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Razorpay Checkout JS -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get elements
+            const payButton = document.getElementById('payButton');
+            const nameInput = document.getElementById('name');
+            const emailInput = document.getElementById('email');
+            const phoneInput = document.getElementById('phone');
+            const amountInput = document.getElementById('amount');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+
+            // Hide messages initially
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            // Function to create order and initialize payment
+            async function initiatePayment() {
+                try {
+                    console.log('Initiating payment...');
+                    
+                    // Basic validation
+                    if (!nameInput.value || !emailInput.value || !phoneInput.value || !amountInput.value) {
+                        showError('Please fill in all fields');
+                        return;
+                    }
+
+                    // Disable button and show loading
+                    payButton.disabled = true;
+                    payButton.innerText = 'Processing...';
+
+                    // Get values
+                    const amount = parseFloat(amountInput.value);
+                    const customerInfo = {
+                        name: nameInput.value,
+                        email: emailInput.value,
+                        phone: phoneInput.value
+                    };
+
+
+                    // 1. Create order on server
+                    const response = await fetch('http://localhost:8003/api/v1/subscription/create-order', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            amount,
+                            notes: {
+                                customerName: customerInfo.name,
+                                customerEmail: customerInfo.email,
+                                customerPhone: customerInfo.phone
+                            }
+                        }),
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        throw new Error(data.message || 'Failed to create order');
+                    }
+                    
+                    // 2. Initialize Razorpay payment
+                    const options = {
+                        key: data.key_id,
+                        amount: data.order.amount,
+                        currency: data.order.currency,
+                        name: "Your Company Name",
+                        description: "Payment for Product/Service",
+                        order_id: data.order.id,
+                        handler: function (response) {
+                            // 3. Verify payment on the server
+                            verifyPayment(response);
+                        },
+                        prefill: {
+                            name: customerInfo.name,
+                            email: customerInfo.email,
+                            contact: customerInfo.phone
+                        },
+                        notes: {
+                            address: "Customer Address",
+                            orderId: data.order.id
+                        },
+                        theme: {
+                            color: "#3399cc"
+                        },
+                        modal: {
+                            ondismiss: function() {
+                                // Re-enable button if payment modal is closed
+                                payButton.disabled = false;
+                                payButton.innerText = 'Pay Now';
+                            }
+                        }
+                    };
+                    
+                    const rzp = new window.Razorpay(options);
+                    rzp.open();
+                    
+                    // Handle payment failure
+                    rzp.on('payment.failed', function (response) {
+                        console.error('Payment failed:', response.error);
+                        showError(`Payment failed: ${response.error.description}`);
+                        payButton.disabled = false;
+                        payButton.innerText = 'Pay Now';
+                    });
+                } catch (error) {
+                    console.error('Payment initiation error:', error);
+                    showError('Failed to initiate payment');
+                    payButton.disabled = false;
+                    payButton.innerText = 'Pay Now';
+                }
+            }
+
+            // Function to verify payment with the server
+            async function verifyPayment(paymentData) {
+                try {
+                    const response = await fetch('http://localhost:8003/api/v1/subscription/verify-payment', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(paymentData),
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showSuccess('Payment successful! Your order has been placed.');
+                        // Optionally redirect to success page
+                        setTimeout(() => {
+                            window.location.href = `/payment-success?id=${data.payment_id}`;
+                        }, 2000);
+                    } else {
+                        showError('Payment verification failed. Please contact support.');
+                    }
+                    
+                    // Reset button state
+                    payButton.disabled = false;
+                    payButton.innerText = 'Pay Now';
+                } catch (error) {
+                    console.error('Verification error:', error);
+                    showError('Payment verification failed');
+                    payButton.disabled = false;
+                    payButton.innerText = 'Pay Now';
+                }
+            }
+
+            // Helper function to show success message
+            function showSuccess(message) {
+                successMessage.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+                
+                // Clear form
+                nameInput.value = '';
+                emailInput.value = '';
+                phoneInput.value = '';
+                amountInput.value = '100';
+            }
+
+            // Helper function to show error message
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+
+            // Add event listener to the Pay button
+            payButton.addEventListener('click', initiatePayment);
+        });
+    </script>
+</body>
+</html>

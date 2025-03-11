@@ -3,7 +3,7 @@ version: '3.8'
 services:
   user-service:
     build:
-      context: ./UserService  # Assumes your UserService is in this directory
+      context: ./UserService
     restart: always
     ports:
       - "8000:8000"
@@ -16,7 +16,7 @@ services:
 
   news-service:
     build:
-      context: ./NewsService  # Assumes your NewsService is in this directory
+      context: ./NewsService  
     restart: always
     ports:
       - "8002:8002"
