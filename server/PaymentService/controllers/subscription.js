@@ -1,4 +1,3 @@
-"use strict";
 const { StatusCodes } = require("http-status-codes");
 const Razorpay = require("razorpay");
 const Payment = require("../models/Payment");

@@ -1,4 +1,3 @@
-"use strict";
 const express = require('express');
 const router = express.Router();
 const { register, login, setupMfa, verifyMfa, resetMfa, forgotPassword, resetPassword } = require('../controllers/auth');

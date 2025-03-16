@@ -1,18 +1,37 @@
+require('express-async-errors');
+const express = require('express');
+const cors = require('cors');
+
 const config = require('./config/env');
-const socket = new WebSocket(`wss://ws.finnhub.io?token=${config.finnhubApiKey}`);
 
-// Connection opened -> Subscribe
-socket.addEventListener('open', function (event) {
-    socket.send(JSON.stringify({'type':'subscribe', 'symbol': 'AAPL'}))
-    socket.send(JSON.stringify({'type':'subscribe', 'symbol': 'BINANCE:BTCUSDT'}))
-});
+// middleware
+const errorHandlerMiddleware = require('./middleware/error-handler');
+const notFoundMiddleware = require('./middleware/not-found');
 
-// Listen for messages
-socket.addEventListener('message', function (event) {
-    console.log('Message from server ', event.data);
-});
+const marketRoutes = require('./routes/market-routes');
+const stockRoutes = require('./routes/stock-route');
 
-// Unsubscribe
- var unsubscribe = function(symbol) {
-    socket.send(JSON.stringify({'type':'unsubscribe','symbol': symbol}))
+const app = express();
+
+app.use(express.json());
+app.use(cors());
+
+app.use('/api/v1/market/', marketRoutes);
+app.use('/api/v1/stock/', stockRoutes);
+
+app.use(errorHandlerMiddleware);
+app.use(notFoundMiddleware);
+
+const start = async () => {
+    try {
+        app.listen(config.port, () => {
+            console.log(`Server is running on port ${config.port}`);
+        });
+    }
+    catch (err){
+        console.error(err);
+    }
 }
+
+
+start();
