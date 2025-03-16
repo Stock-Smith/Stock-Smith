@@ -16,9 +16,9 @@ const app = express();
 
 // Middlewares
 app.use(express.json());
-app.use(cors());
+// app.use(cors());
 
-app.use("/api/v1/", fetchNewsRoute);
+app.use("/api/v1/news/", fetchNewsRoute);
 
 app.use(errorHandlerMiddleware);
 app.use(notFoundMiddleware);

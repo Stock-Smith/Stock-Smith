@@ -1,6 +1,18 @@
 version: '3.8'
 
 services:
+
+  nginx:
+    build:
+      context: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - user-service
+      - news-service
+      - payment-service
+    networks:
+      - app-network
   user-service:
     build:
       context: ./UserService
@@ -22,6 +34,17 @@ services:
       - "8002:8002"
     env_file:
       - ./NewsService/.env
+    networks:
+      - app-network
+  
+  payment-service:
+    build:
+      context: ./PaymentService
+    restart: always
+    ports:
+      - "8003:8003"
+    env_file:
+      - ./PaymentService/.env
     networks:
       - app-network
 

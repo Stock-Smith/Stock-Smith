@@ -11,6 +11,7 @@ const sendMail = require("../utils/sendMail");
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require("../errors");
 
 const register = async (req, res) => {
+  console.log("Request received at register");
   const user = await User.create({ ...req.body });
   res
     .status(StatusCodes.CREATED)

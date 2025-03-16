@@ -152,7 +152,7 @@
 
 
                     // 1. Create order on server
-                    const response = await fetch('http://localhost:8003/api/v1/subscription/create-order', {
+                    const response = await fetch('http://localhost/api/v1/subscription/create-order', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -227,7 +227,7 @@
             // Function to verify payment with the server
             async function verifyPayment(paymentData) {
                 try {
-                    const response = await fetch('http://localhost:8003/api/v1/subscription/verify-payment', {
+                    const response = await fetch('http://localhost/api/v1/subscription/verify-payment', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
