@@ -11,7 +11,7 @@ const notFoundMiddleware = require('./middleware/not-found');
 const marketRoutes = require('./routes/market-routes');
 const stockRoutes = require('./routes/stock-route');
 
-const LiveStockPriceService = require('./service/LiveStockPriceService');
+const StockPriceService = require('./service/StockPriceService');
 
 const app = express();
 
@@ -26,10 +26,14 @@ app.use(notFoundMiddleware);
 
 const start = async () => {
     try {
-        LiveStockPriceService.connect()
+        StockPriceService.connect()
         .then(() => {
             console.log('Connected to Tiingo WebSocket API');
-            LiveStockPriceService.subscribe('AAPL');
+            StockPriceService.subscribe('AAPL');
+            StockPriceService.subscribe('GOOGL');
+            StockPriceService.subscribe('MSFT');
+            StockPriceService.subscribe('AMZN');
+            StockPriceService.unsubscribe('GOOGL');
         }
         )
         .catch((err) => {
