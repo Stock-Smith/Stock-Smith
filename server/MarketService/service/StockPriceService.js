@@ -9,7 +9,8 @@ const redisClient = require("../uitls/redis");
 class StockPriceService {
   constructor() {
     this.ws = null;
-    this.redisKey = "stock:price";
+    this.redisKey = "stock:subscription";
+    this.stockPriceKey = "stock:price";
     this.subscriptions = new Set();
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -97,11 +98,22 @@ class StockPriceService {
 
   /**
    * Handle incoming messages from Tiingo WebSocket API
-   * @param {string} message - The parsed message from Tiingo
+   * @param {string} message - The raw message from Tiingo
    */
   handleMessage(message) {
     const data = JSON.parse(message);
     console.log("Parsed message:", data);
+    if(data.service === 'iex' && data.messageType === 'A') {
+      const [timestamp, ticker, price] = data.data;
+      console.log(`Received stock price for ${ticker} at ${timestamp}: $${price}`);
+      const normalisedTicker = ticker.toUpperCase();
+      const stockPrice = {
+        timestamp,
+        ticker: normalisedTicker,
+        price,
+      };
+      redisClient.publish(`${this.stockPriceKey}:${normalisedTicker}`, JSON.stringify(stockPrice));
+    }
   }
 
   /**
@@ -166,6 +178,50 @@ class StockPriceService {
       console.error("Error unsubscribing from tickers:", error);
       throw new CustomAPIError("Failed to unsubscribe from tickers");
     }
+  }
+
+  /**
+   * Ensure that a stock ticker is subscribed to
+   * @param {string} ticker - The stock ticker to ensure subscription for
+   * @returns {boolean} - Indicates whether a new subscription was made
+   */
+  async ensureSubscription(ticker) {
+    // Check if ticker is already subscribed
+    const isSubscribed = await redisClient.sismember(this.redisKey, ticker);
+    
+    // If not already subscribed, subscribe to it
+    if (!isSubscribed) {
+      await this.subscribe(ticker);
+      return true; // Indicates a new subscription was made
+    }
+    
+    return false; // Already subscribed
+  }
+
+  /**
+   * Reset existing WebSocket connections
+   */
+  async resetConnections() {
+    console.log("Cleaning up existing Tiingo WebSocket connections...");
+    
+    // Close the current WebSocket if it exists
+    if (this.ws) {
+      this.ws.terminate();
+      this.ws = null;
+    }
+    
+    console.log("Connection reset complete. Ready to establish new connections.");
+  }
+
+  /**
+   * Clean up resources
+   */
+  async cleanup() {
+    if (this.ws) {
+      this.ws.terminate();
+      this.ws = null;
+    }
+    await this.redis.quit();
   }
 }
 
