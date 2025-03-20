@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Price Socket Tester</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    input, button {
+      padding: 8px;
+      border-radius: 4px;
+    }
+    input {
+      border: 1px solid #ccc;
+      flex-grow: 1;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button.danger {
+      background-color: #f44336;
+    }
+    button.danger:hover {
+      background-color: #d32f2f;
+    }
+    #statusBar {
+      font-weight: bold;
+      padding: 10px;
+      border-radius: 4px;
+      background-color: #f0f0f0;
+    }
+    #subscriptions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .subscription-tag {
+      background-color: #e0e0e0;
+      padding: 5px 10px;
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .remove-btn {
+      background-color: #f44336;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    .positive {
+      color: green;
+    }
+    .negative {
+      color: red;
+    }
+    .flash {
+      animation: flash 0.5s;
+    }
+    @keyframes flash {
+      0% { background-color: transparent; }
+      50% { background-color: #ffeb3b; }
+      100% { background-color: transparent; }
+    }
+    #logContainer {
+      height: 200px;
+      overflow-y: auto;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 3px 0;
+      border-bottom: 1px solid #eee;
+    }
+    .log-time {
+      color: #607d8b;
+      font-size: 0.8em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h2>Stock Price Socket Tester</h2>
+      <div id="statusBar">Status: Disconnected</div>
+      
+      <div class="input-group">
+        <input type="text" id="clientIdInput" placeholder="Enter Client ID">
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+      </div>
+    </div>
+    
+    <div class="card">
+      <h3>Manage Subscriptions</h3>
+      <div class="input-group">
+        <input type="text" id="tickerInput" placeholder="Enter ticker symbol (e.g., AAPL)">
+        <button id="subscribeBtn" disabled>Subscribe</button>
+      </div>
+      
+      <h4>Active Subscriptions</h4>
+      <div id="subscriptions"></div>
+      
+      <button id="unsubscribeAllBtn" disabled>Unsubscribe All</button>
+    </div>
+    
+    <div class="card">
+      <h3>Real-time Stock Prices</h3>
+      <table id="priceTable">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Last Price</th>
+            <th>Change</th>
+            <th>Change %</th>
+            <th>Updated At</th>
+          </tr>
+        </thead>
+        <tbody id="priceTableBody">
+          <!-- Price data will be populated here -->
+        </tbody>
+      </table>
+    </div>
+    
+    <div class="card">
+      <h3>Event Log</h3>
+      <div id="logContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // DOM Elements
+      const statusBar = document.getElementById('statusBar');
+      const clientIdInput = document.getElementById('clientIdInput');
+      const connectBtn = document.getElementById('connectBtn');
+      const disconnectBtn = document.getElementById('disconnectBtn');
+      const tickerInput = document.getElementById('tickerInput');
+      const subscribeBtn = document.getElementById('subscribeBtn');
+      const unsubscribeAllBtn = document.getElementById('unsubscribeAllBtn');
+      const subscriptions = document.getElementById('subscriptions');
+      const priceTableBody = document.getElementById('priceTableBody');
+      const logContainer = document.getElementById('logContainer');
+      
+      // Variables
+      let socket;
+      let activeTickersNormalized = {}; // Store both display version and normalized version
+      let priceData = {};
+      
+      // Functions
+      function updateStatus(status, isConnected = false) {
+        statusBar.textContent = `Status: ${status}`;
+        connectBtn.disabled = isConnected;
+        disconnectBtn.disabled = !isConnected;
+        subscribeBtn.disabled = !isConnected;
+        unsubscribeAllBtn.disabled = !isConnected || Object.keys(activeTickersNormalized).length === 0;
+      }
+      
+      function addLogEntry(message, data = null) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry';
+        logEntry.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
+        logContainer.appendChild(logEntry);
+        logContainer.scrollTop = logContainer.scrollHeight;
+        
+        // Console logging
+        if (data) {
+          console.log(`[${timeStr}] ${message}`, data);
+        } else {
+          console.log(`[${timeStr}] ${message}`);
+        }
+      }
+      
+      function updateSubscriptions() {
+        subscriptions.innerHTML = '';
+        Object.entries(activeTickersNormalized).forEach(([normalizedTicker, displayTicker]) => {
+          const tag = document.createElement('div');
+          tag.className = 'subscription-tag';
+          tag.innerHTML = `
+            ${displayTicker}
+            <button class="remove-btn" data-ticker="${normalizedTicker}">×</button>
+          `;
+          subscriptions.appendChild(tag);
+        });
+        
+        unsubscribeAllBtn.disabled = Object.keys(activeTickersNormalized).length === 0;
+      }
+      
+      function updatePriceTable() {
+        priceTableBody.innerHTML = '';
+        Object.entries(priceData).forEach(([tickerKey, data]) => {
+          // Get display ticker if available
+          const displayTicker = Object.entries(activeTickersNormalized)
+            .find(([normalized, display]) => normalized.toLowerCase() === tickerKey.toLowerCase())?.[1] || tickerKey;
+            
+          const row = document.createElement('tr');
+          row.id = `price-row-${tickerKey}`;
+          
+          const changeValue = data.change || 0;
+          const changePercent = data.changePercent || 0;
+          const changeClass = changeValue >= 0 ? 'positive' : 'negative';
+          const changeSign = changeValue >= 0 ? '+' : '';
+          
+          row.innerHTML = `
+            <td>${displayTicker}</td>
+            <td>${data.price ? data.price.toFixed(2) : 'N/A'}</td>
+            <td class="${changeClass}">${changeSign}${changeValue.toFixed(2)}</td>
+            <td class="${changeClass}">${changeSign}${changePercent.toFixed(2)}%</td>
+            <td>${data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString() : 'N/A'}</td>
+          `;
+          priceTableBody.appendChild(row);
+        });
+      }
+      
+      function flashRow(ticker) {
+        const row = document.getElementById(`price-row-${ticker}`);
+        if (row) {
+          row.classList.add('flash');
+          setTimeout(() => {
+            row.classList.remove('flash');
+          }, 500);
+        }
+      }
+      
+      // Normalize ticker to lowercase for internal usage
+      function normalizeTicker(ticker) {
+        return ticker.toLowerCase();
+      }
+      
+      // Event Handlers
+      connectBtn.addEventListener('click', () => {
+        const clientId = clientIdInput.value.trim();
+        if (!clientId) {
+          alert('Please enter a Client ID');
+          return;
+        }
+        
+        updateStatus('Connecting...', false);
+        
+        // Initialize socket connection
+        socket = io('http://localhost:8003', {
+          transports: ['websocket', 'polling'] // Try both transports
+        });
+        
+        // Add console logging for all socket events
+        const originalEmit = socket.emit;
+        socket.emit = function() {
+          const args = Array.from(arguments);
+          console.log('SOCKET EMIT:', args[0], args.slice(1));
+          return originalEmit.apply(this, args);
+        };
+        
+        socket.onAny((event, ...args) => {
+          console.log('SOCKET RECEIVED:', event, args);
+        });
+        
+        socket.on('connect', () => {
+          updateStatus(`Connected (Socket ID: ${socket.id})`, true);
+          addLogEntry(`Connected to server with Socket ID: ${socket.id}`);
+          addLogEntry(`Using transport: ${socket.io.engine.transport.name}`);
+          
+          // Authenticate
+          socket.emit('authenticate', clientId);
+        });
+        
+        socket.on('disconnect', () => {
+          updateStatus('Disconnected', false);
+          addLogEntry('Disconnected from server');
+          activeTickersNormalized = {};
+          updateSubscriptions();
+        });
+        
+        socket.on('error', (error) => {
+          addLogEntry(`Error: ${JSON.stringify(error)}`, error);
+        });
+        
+        socket.on('subscribed', (tickers) => {
+          addLogEntry(`Subscribed to tickers: ${tickers.join(', ')}`, tickers);
+          tickers.forEach(ticker => {
+            const normalizedTicker = normalizeTicker(ticker);
+            activeTickersNormalized[normalizedTicker] = ticker; // Keep original format for display
+          });
+          updateSubscriptions();
+        });
+        
+        socket.on('unsubscribed', (tickers) => {
+          addLogEntry(`Unsubscribed from tickers: ${tickers.join(', ')}`, tickers);
+          tickers.forEach(ticker => {
+            const normalizedTicker = normalizeTicker(ticker);
+            delete activeTickersNormalized[normalizedTicker];
+            
+            // Remove any price data for this ticker (check both cases)
+            delete priceData[normalizedTicker];
+            delete priceData[ticker];
+            delete priceData[ticker.toUpperCase()];
+            delete priceData[ticker.toLowerCase()];
+          });
+          updateSubscriptions();
+          updatePriceTable();
+        });
+        
+        socket.on('subscriptions_restored', (tickers) => {
+          addLogEntry(`Restored subscriptions: ${tickers.join(', ')}`, tickers);
+          tickers.forEach(ticker => {
+            const normalizedTicker = normalizeTicker(ticker);
+            activeTickersNormalized[normalizedTicker] = ticker; // Keep original format for display
+          });
+          updateSubscriptions();
+        });
+        
+        socket.on('price', (data) => {
+          console.log('Raw price data received:', data);
+          console.table(data);
+          
+          // Handle case variations in ticker symbol
+          let ticker = data.ticker || '';
+          const normalizedTicker = normalizeTicker(ticker);
+          
+          addLogEntry(`Received price data for ticker: ${ticker}`, data);
+          
+          // Calculate change values
+          let prevClose;
+          
+          if (data.prevClose) {
+            prevClose = data.prevClose;
+          } else if (priceData[normalizedTicker]?.prevClose) {
+            prevClose = priceData[normalizedTicker].prevClose;
+          } else {
+            // If no prevClose is available, use the current price (just for initial display)
+            prevClose = data.price * 0.99; // Assume 1% difference as placeholder
+          }
+          
+          const change = data.price - prevClose;
+          const changePercent = (change / prevClose) * 100;
+          
+          priceData[normalizedTicker] = {
+            price: data.price,
+            prevClose: prevClose,
+            change: change,
+            changePercent: changePercent,
+            updatedAt: new Date(),
+            rawData: data
+          };
+          
+          updatePriceTable();
+          flashRow(normalizedTicker);
+          addLogEntry(`Price update for ${ticker}: $${data.price.toFixed(2)}`, data);
+        });
+      });
+      
+      disconnectBtn.addEventListener('click', () => {
+        if (socket) {
+          socket.disconnect();
+          socket = null;
+          updateStatus('Disconnected', false);
+          activeTickersNormalized = {};
+          updateSubscriptions();
+        }
+      });
+      
+      subscribeBtn.addEventListener('click', () => {
+        const ticker = tickerInput.value.trim().toUpperCase();
+        if (!ticker) {
+          alert('Please enter a ticker symbol');
+          return;
+        }
+        
+        if (!socket || !socket.connected) {
+          alert('Not connected to server');
+          return;
+        }
+        
+        socket.emit('subscribe', ticker);
+        tickerInput.value = '';
+      });
+      
+      unsubscribeAllBtn.addEventListener('click', () => {
+        if (!socket || !socket.connected) {
+          alert('Not connected to server');
+          return;
+        }
+        
+        if (Object.keys(activeTickersNormalized).length === 0) {
+          return;
+        }
+        
+        // Use the original tickers for unsubscribe
+        const tickersToUnsubscribe = Object.values(activeTickersNormalized);
+        socket.emit('unsubscribe', tickersToUnsubscribe);
+      });
+      
+      // Event delegation for remove buttons
+      subscriptions.addEventListener('click', (event) => {
+        if (event.target.classList.contains('remove-btn')) {
+          const normalizedTicker = event.target.dataset.ticker;
+          const displayTicker = activeTickersNormalized[normalizedTicker];
+          
+          if (displayTicker && socket && socket.connected) {
+            socket.emit('unsubscribe', displayTicker);
+          }
+        }
+      });
+      
+      // Initialize
+      updateStatus('Disconnected', false);
+      console.log('Stock Price Socket Tester initialized - open your browser console for detailed logs');
+    });
+  </script>
+</body>
