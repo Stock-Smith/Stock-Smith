@@ -173,6 +173,7 @@ class SocketService {
         if (count <= 0) {
           await this.redisSub.unsubscribe(channel);
           await this.redisClient.del(`channel:${channel}`);
+          await StockPriceService.unsubscribe(ticker);
         }
       }
     }
