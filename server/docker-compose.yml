@@ -22,7 +22,6 @@ services:
     env_file:
       - ./UserService/.env
     depends_on:
-      - mongodb
       - kafka
     networks:
       - app-network
@@ -50,16 +49,6 @@ services:
       - ./PaymentService/.env
     depends_on:
       - kafka
-    networks:
-      - app-network
-
-  mongodb:
-    image: mongo:latest
-    restart: always
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
     networks:
       - app-network
 
@@ -117,7 +106,6 @@ networks:
     driver: bridge
 
 volumes:
-  mongodb_data:
   zookeeper_data:
   zookeeper_logs:
   kafka_data:

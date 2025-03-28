@@ -11,6 +11,9 @@ RUN npm install
 # Copy app source code
 COPY . .
 
+# Set environment variable for production
+ENV NODE_ENV=production
+
 # Expose the port from your env file
 EXPOSE 8001
 

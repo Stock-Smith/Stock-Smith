@@ -82,7 +82,7 @@ const verifyPayment = async (req, res) => {
             paymentId: razorpay_payment_id,
             status: 'success'
         }
-        await KafkaProducer.sendMessage("payment-success", message);
+        await KafkaProducer.sendMessage(config.kafkaPaymentTopic, message);
 
   
         return res.status(StatusCodes.OK).json({
