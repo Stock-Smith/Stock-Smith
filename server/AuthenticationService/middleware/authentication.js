@@ -1,5 +1,5 @@
 const {UnauthenticatedError} = require('../errors');
-const { verifyToken } = require('../utils/authentication');
+const AuthenticationService = require('../services/Authentication');
 
 const auth = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -9,8 +9,14 @@ const auth = async (req, res, next) => {
     const token = authHeader.split(' ')[1];
 
     try {
-        const payload = verifyToken(token);
+        const payload = AuthenticationService.verifyToken(token);
+        if(!payload) {
+            throw new UnauthenticatedError('Authentication invalid');
+        }
         req.user = { userId: payload._id, name: payload.name, email: payload.email };
+        res.setHeader('X-User-Id', payload._id);
+        res.setHeader('X-User-Name', payload.name);
+        res.setHeader('X-User-Email', payload.email);
         next();
     } catch (error) {
         throw new UnauthenticatedError('Authentication invalid');
