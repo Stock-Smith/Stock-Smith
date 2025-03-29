@@ -1,7 +1,7 @@
-"use strict";
 const { StatusCodes } = require("http-status-codes");
 const Razorpay = require("razorpay");
 const Payment = require("../models/Payment");
+const KafkaProducer = require("../services/KafkaProducer");
 const crypto = require("crypto");
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 const config = require("../config/env");
@@ -75,6 +75,15 @@ const verifyPayment = async (req, res) => {
         //   user_id: req.user.id,
         //   status: 'completed'
         // });
+
+        await KafkaProducer.connect();
+        const message = {
+            email: "aryan.gupta22b@iiitg.ac.in",
+            paymentId: razorpay_payment_id,
+            status: 'success'
+        }
+        await KafkaProducer.sendMessage(config.kafkaPaymentTopic, message);
+
   
         return res.status(StatusCodes.OK).json({
           success: true,

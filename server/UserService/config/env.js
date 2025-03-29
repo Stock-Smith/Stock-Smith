@@ -1,6 +1,5 @@
-"use strict";
 require('dotenv').config();
-
+const isProduction = process.env.NODE_ENV === 'production';
 module.exports = {
     port: process.env.PORT || 3000,
     db: {
@@ -14,4 +13,8 @@ module.exports = {
     emailUser: process.env.EMAIL_USER,
     emailPass: process.env.EMAIL_PASS,
     clientURI: process.env.CLIENT_URI,
+    kafkaBrokers: isProduction
+        ? process.env.KAFKA_BROKERS_PROD
+        : process.env.KAFKA_BROKERS_DEV,
+    kafkaPaymentTopic: process.env.KAFKA_PAYMENT_TOPIC
 }

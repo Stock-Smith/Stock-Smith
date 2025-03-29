@@ -1,4 +1,3 @@
-"use strict";
 const axios = require("axios");
 const { StatusCodes } = require("http-status-codes");
 const { BadRequestError } = require("../errors");

@@ -11,8 +11,11 @@ RUN npm install
 # Copy app source code
 COPY . .
 
+# Set environment variable for production
+ENV NODE_ENV=production
+
 # Expose the port from your env file
-EXPOSE 8000
+EXPOSE 8001
 
 # Start the application (adjust the entry point file if needed)
 CMD ["node", "app.js"]

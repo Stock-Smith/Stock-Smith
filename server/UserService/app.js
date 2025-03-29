@@ -1,6 +1,7 @@
 require('express-async-errors');
 const express = require('express');
 const cors = require('cors');
+const PaymentVerificationController = require('./controllers/payment-verification');
 
 // database
 const connectDB = require('./config/db');
@@ -46,6 +47,8 @@ app.use(notFoundMiddleware);
 const start = async () => {
     try {
         await connectDB();
+        await PaymentVerificationController.init();
+        
         console.log('Connected to database');
         app.listen(config.port, () => {
             console.log(`Server is running on port ${config.port}`);
