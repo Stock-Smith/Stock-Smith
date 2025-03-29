@@ -4,8 +4,9 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Portfolio from "./pages/Portfolio";
 import Watchlist from "./pages/Watchlist";
-import News from "./pages/News";
+import News from "./pages/MarketNews";
 import About from "./pages/About";
+import PaymentForm from "./pages/payment";
 import Navbar from "./components/Navbar";
 import AuthForm from "./components/AuthForm";
 
@@ -22,6 +23,7 @@ const App = () => {
             <Route path="/auth" element={<AuthForm type="login" />} />
             <Route path="/portfolio" element={isAuthenticated ? <Portfolio /> : <Navigate to="/auth?type=login" />} />
             <Route path="/watchlist" element={isAuthenticated ? <Watchlist /> : <Navigate to="/auth?type=login" />} />
+            <Route path="/subscription" element={isAuthenticated ? <PaymentForm /> : <Navigate to="/auth?type=login" />} />
             <Route path="/news" element={isAuthenticated ? <News /> : <Navigate to="/auth?type=login" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

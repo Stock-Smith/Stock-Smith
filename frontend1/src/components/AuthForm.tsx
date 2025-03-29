@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Shield } from "lucide-react";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://localhost"; // Using localhost
 
 type AuthFormProps = {
   type: "login" | "signup";
@@ -35,27 +35,16 @@ const AuthForm = ({ type }: AuthFormProps) => {
   
   const [authStage, setAuthStage] = useState<"credentials" | "mfa">("credentials");
   const [userEmail, setUserEmail] = useState("");
+  const [tempMfaToken, setTempMfaToken] = useState("");
+  const [qrCode, setQrCode] = useState("");
   const [mfaError, setMfaError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Add session validation effect
+  // Check for existing session token
   useEffect(() => {
-    const verifySession = async () => {
-      try {
-        await axios.get(`${API_BASE_URL}/api/v1/auth/status`, {
-          withCredentials: true,
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          }
-        });
-      } catch (err) {
-        localStorage.removeItem("token");
-        navigate("/login");
-      }
-    };
-
-    if (localStorage.getItem("token")) {
-      verifySession();
+    const sessionToken = localStorage.getItem("token");
+    if (sessionToken) {
+      navigate("/");
     }
   }, [navigate]);
 
@@ -71,40 +60,27 @@ const AuthForm = ({ type }: AuthFormProps) => {
 
       // Clear previous session data
       localStorage.removeItem("token");
+      localStorage.removeItem("tempMfaToken");
       
       const loginResponse = await axios.post(
         `${API_BASE_URL}/api/v1/auth/login`,
-        data,
-        { withCredentials: true }
+        data
       );
 
       setUserEmail(data.email);
 
-      // Get fresh auth status
-      const statusResponse = await axios.get(
-        `${API_BASE_URL}/api/v1/auth/status`,
-        { 
-          withCredentials: true,
-          headers: {
-            Authorization: `Bearer ${loginResponse.data.token}`
-          }
-        }
-      );
-
-      if (!statusResponse.data.user.isMfaActive) {
-        await axios.post(
-          `${API_BASE_URL}/api/v1/auth/mfa/setup`,
-          {},
-          { 
-            withCredentials: true,
-            headers: {
-              Authorization: `Bearer ${loginResponse.data.token}`
-            }
-          }
-        );
+      // Check if MFA is required
+      if (loginResponse.data.isMfaActive) {
+        // MFA is already set up for this user
+        setTempMfaToken(loginResponse.data.tempToken);
+        localStorage.setItem("tempMfaToken", loginResponse.data.tempToken);
+        setAuthStage("mfa");
+      } else {
+        // No MFA, user is logged in
+        localStorage.setItem("token", loginResponse.data.token);
+        // Use window.location.reload() for a full page refresh
+        window.location.reload();
       }
-      
-      setAuthStage("mfa");
     } catch (err) {
       const errorMessage = axios.isAxiosError(err)
         ? err.response?.data?.message || "Authentication failed"
@@ -115,28 +91,48 @@ const AuthForm = ({ type }: AuthFormProps) => {
     }
   };
 
+  const setupMfa = async () => {
+    try {
+      const response = await axios.post(
+        `${API_BASE_URL}/api/v1/auth/mfa/setup`,
+        { email: userEmail }
+      );
+      
+      setQrCode(response.data.qrCode);
+      setTempMfaToken(response.data.tempToken);
+      localStorage.setItem("tempMfaToken", response.data.tempToken);
+    } catch (err) {
+      const errorMessage = axios.isAxiosError(err)
+        ? err.response?.data?.message || "Failed to set up MFA"
+        : "An unexpected error occurred";
+      alert(errorMessage);
+    }
+  };
+
   const handleMfaVerify = async ({ token }: MfaFormValues) => {
     setIsSubmitting(true);
     try {
       setMfaError("");
+      
+      const savedTempToken = localStorage.getItem("tempMfaToken") || tempMfaToken;
+      
       const { data } = await axios.post(
         `${API_BASE_URL}/api/v1/auth/mfa/verify`,
-        { token },
         { 
-          withCredentials: true 
-          // Note: You shouldn't use the token from localStorage here, as it's not set after the login step
+          email: userEmail,
+          token,
+          tempMfaToken: savedTempToken
         }
       );
-  
+
       // Update token in localStorage
       localStorage.setItem("token", data.token);
       
-      // Navigate to dashboard with the new token
-      navigate("/", { replace: true });
+      // Clean up the temporary token
+      localStorage.removeItem("tempMfaToken");
       
-      // Don't reload the window - this is likely causing your issue
-      setTimeout(() => window.location.reload(), 1); // Remove this line
-      
+      // Use window.location.reload() for a full page refresh instead of navigate
+      window.location.reload();
     } catch (err) {
       setMfaError(
         axios.isAxiosError(err)
@@ -178,10 +174,22 @@ const AuthForm = ({ type }: AuthFormProps) => {
               <Alert className="mb-4 bg-gray-800 border-blue-800 text-gray-200">
                 <AlertCircle className="h-4 w-4 text-blue-400" />
                 <AlertDescription>
-                  We've sent a QR code to <span className="font-semibold text-blue-400">{userEmail}</span>. 
-                  Scan it with your authenticator app and enter the 6-digit code below.
+                  Enter the 6-digit code from your authenticator app below.
                 </AlertDescription>
               </Alert>
+
+              {qrCode && (
+                <div className="text-center mb-4">
+                  <img 
+                    src={qrCode} 
+                    alt="QR Code for MFA" 
+                    className="mx-auto mb-2 max-w-full h-auto" 
+                  />
+                  <p className="text-sm text-gray-400">
+                    Scan this QR code with your authenticator app
+                  </p>
+                </div>
+              )}
 
               <form onSubmit={handleSubmitMfa(handleMfaVerify)}>
                 <div className="grid gap-4">
@@ -285,7 +293,7 @@ const AuthForm = ({ type }: AuthFormProps) => {
                     ? "Processing..." 
                     : isSignup 
                       ? "Create Account" 
-                      : "Continue to Security Check"}
+                      : "Sign In"}
                 </Button>
               </div>
             </form>
