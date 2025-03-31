@@ -26,3 +26,5 @@ dist-ssr
 #Backend
 .env
 venv
+ml_model
+best_LSTM_model_look_ahead_5.pth

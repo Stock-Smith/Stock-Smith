@@ -4,3 +4,11 @@ pyyaml
 requests
 django-cors-headers
 python-dotenv==1.0.1
+yfinance
+pandas
+numpy
+torch
+scikit-learn
+tqdm
+django-redis==5.4.0
+redis==5.0.7
