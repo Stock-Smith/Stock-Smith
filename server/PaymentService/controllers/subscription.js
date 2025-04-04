@@ -44,6 +44,7 @@ const createOrder = async(req, res) => {
 const verifyPayment = async (req, res) => {
     try {
       console.log("Verify Payment Request:", req.body);
+      console.log('Request Headers:', req.headers);
       
       // Extract payment details
       const {

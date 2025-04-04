@@ -51,6 +51,17 @@ services:
       - kafka
     networks:
       - app-network
+  
+  authentication-service:
+    build: 
+      context: ./AuthenticationService
+    restart: always
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./AuthenticationService/.env
+    networks:
+      - app-network
 
   # Zookeeper service (required for Kafka)
   zookeeper:
