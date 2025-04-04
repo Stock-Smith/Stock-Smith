@@ -7,12 +7,13 @@ import Watchlist from "./pages/Watchlist";
 import News from "./pages/MarketNews";
 import About from "./pages/About";
 import PaymentForm from "./pages/payment";
+import StockDetailPage from "./pages/stockdetails"; // Import the StockDetail component
 import Navbar from "./components/Navbar";
 import AuthForm from "./components/AuthForm";
 
 const App = () => {
   const { isAuthenticated } = useAuthStore();
-
+  
   return (
     <Router>
       <div className="flex flex-col min-h-screen">
@@ -25,6 +26,7 @@ const App = () => {
             <Route path="/watchlist" element={isAuthenticated ? <Watchlist /> : <Navigate to="/auth?type=login" />} />
             <Route path="/subscription" element={isAuthenticated ? <PaymentForm /> : <Navigate to="/auth?type=login" />} />
             <Route path="/news" element={isAuthenticated ? <News /> : <Navigate to="/auth?type=login" />} />
+            <Route path="/stock/:ticker" element={<StockDetailPage ticker=":ticker" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
