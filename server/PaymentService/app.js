@@ -3,7 +3,8 @@ const express = require("express");
 const cors = require('cors');
 
 const config = require("./config/env");
-
+const connectDB = require("./config/db");
+ 
 const errorHandlerMiddleware = require("./middleware/error-handler");
 const notFoundMiddleware = require("./middleware/not-found");
 
@@ -22,6 +23,8 @@ app.use(notFoundMiddleware);
 
 const start = async () => {
     try {
+        await connectDB();
+        console.log("Connected to database");
         app.listen(config.port, () => {
             console.log(`Server is running on port ${config.port}`);
         });
