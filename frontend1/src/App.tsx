@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "./context/AuthContext";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
@@ -7,9 +7,17 @@ import Watchlist from "./pages/Watchlist";
 import News from "./pages/MarketNews";
 import About from "./pages/About";
 import PaymentForm from "./pages/payment";
-import StockDetailPage from "./pages/stockdetails"; // Import the StockDetail component
+import StockDetailPage from "./pages/stockdetails";
 import Navbar from "./components/Navbar";
 import AuthForm from "./components/AuthForm";
+
+// Auth wrapper component to handle query parameters
+const AuthWrapper = () => {
+  const [searchParams] = useSearchParams();
+  const type = searchParams.get('type') === 'signup' ? 'signup' : 'login';
+  
+  return <AuthForm type={type} />;
+};
 
 const App = () => {
   const { isAuthenticated } = useAuthStore();
@@ -21,11 +29,13 @@ const App = () => {
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/auth" element={<AuthForm type="login" />} />
-            <Route path="/portfolio" element={isAuthenticated ? <Portfolio /> : <Navigate to="/auth?type=login" />} />
-            <Route path="/watchlist" element={isAuthenticated ? <Watchlist /> : <Navigate to="/auth?type=login" />} />
-            <Route path="/subscription" element={isAuthenticated ? <PaymentForm /> : <Navigate to="/auth?type=login" />} />
-            <Route path="/news" element={isAuthenticated ? <News /> : <Navigate to="/auth?type=login" />} />
+            <Route path="/login" element={<AuthForm type="login" />} />
+            <Route path="/register" element={<AuthForm type="signup" />} />
+            <Route path="/auth" element={<AuthWrapper />} />
+            <Route path="/portfolio" element={isAuthenticated ? <Portfolio /> : <Navigate to="/login" />} />
+            <Route path="/watchlist" element={isAuthenticated ? <Watchlist /> : <Navigate to="/login" />} />
+            <Route path="/subscription" element={isAuthenticated ? <PaymentForm /> : <Navigate to="/login" />} />
+            <Route path="/news" element={isAuthenticated ? <News /> : <Navigate to="/login" />} />
             <Route path="/stock/:ticker" element={<StockDetailPage ticker=":ticker" />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
