@@ -6,10 +6,14 @@ const PaymentSchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
-    transactionId: {
+    orderId: {
         type: String,
         required: true,
+    },
+    paymentId: {
+        type: String,
         unique: true,
+        sparse: true // This field is optional, so we use sparse to allow multiple documents with null values
     },
     planId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -19,11 +23,6 @@ const PaymentSchema = new mongoose.Schema({
     amount: {
         type: Number,
         required: true,
-    },
-    paymentMethod: {
-        type: String,
-        enum: ['credit_card', 'paypal', 'stripe', 'bank_transfer'],
-        required: true
     },
     status: {
         type: String,
