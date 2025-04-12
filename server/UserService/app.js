@@ -47,6 +47,7 @@ app.use(notFoundMiddleware);
 const start = async () => {
     try {
         await connectDB();
+        // Set a timeout for the before initailizinfg the connection to kfka
         await PaymentVerificationController.init();
         
         console.log('Connected to database');
