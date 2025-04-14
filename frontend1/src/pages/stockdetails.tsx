@@ -14,18 +14,31 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Effect to set the page background when component mounts
+  useEffect(() => {
+    // Set the background color of the body and html elements
+    document.body.classList.add('bg-black');
+    document.documentElement.classList.add('bg-black');
+
+    // Clean up when component unmounts
+    return () => {
+      document.body.classList.remove('bg-black');
+      document.documentElement.classList.remove('bg-black');
+    };
+  }, []);
+
   useEffect(() => {
     const fetchStockData = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const response = await fetch(`http://localhost:8003/api/v1/stock/details?ticker=${ticker}`);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch data for ${ticker}`);
         }
-        
+
         const data = await response.json();
         setStockData(data);
       } catch (err) {
@@ -43,10 +56,12 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
   // Show loading state
   if (isLoading) {
     return (
-      <div className="container mx-auto py-6 px-4 max-w-7xl flex justify-center items-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800 mx-auto mb-4"></div>
-          <p>Loading stock data for {ticker}...</p>
+      <div className="min-h-screen bg-black">
+        <div className="container mx-auto py-6 px-4 max-w-7xl flex justify-center items-center h-64 bg-black text-gray-200">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-200 mx-auto mb-4"></div>
+            <p>Loading stock data for {ticker}...</p>
+          </div>
         </div>
       </div>
     );
@@ -55,10 +70,12 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
   // If no data is available, show error
   if (!stockData) {
     return (
-      <div className="container mx-auto py-6 px-4 max-w-7xl">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> Could not load stock data for {ticker}.</span>
+      <div className="min-h-screen bg-black">
+        <div className="container mx-auto py-6 px-4 max-w-7xl bg-black text-gray-200">
+          <div className="bg-red-900 border border-red-700 text-red-300 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error!</strong>
+            <span className="block sm:inline"> Could not load stock data for {ticker}.</span>
+          </div>
         </div>
       </div>
     );
@@ -105,355 +122,339 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
     Number.parseInt(AnalystRatingStrongSell);
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-7xl">
-      {/* Show error message if there was an issue but we're using mock data */}
-      {error && (
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-6" role="alert">
-          <span className="block sm:inline">{error}</span>
-        </div>
-      )}
-      
-      {/* Header with stock name and current price */}
-      <div className="mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              {Name} <span className="text-muted-foreground text-lg">({Symbol})</span>
-            </h1>
-            <p className="text-muted-foreground">
-              {Exchange} • {Sector} • {Industry}
-            </p>
+    <div className="min-h-screen bg-black text-gray-100">
+      <div className="container mx-auto py-6 px-4 max-w-7xl">
+        {/* Show error message if there was an issue but we're using mock data */}
+        {error && (
+          <div className="bg-yellow-900 border border-yellow-700 text-yellow-300 px-4 py-3 rounded relative mb-6" role="alert">
+            <span className="block sm:inline">{error}</span>
           </div>
+        )}
 
-          <div className="flex flex-col items-end">
-            <div className="text-3xl font-bold">${mockCurrentPrice.toFixed(2)}</div>
-            <div className={`flex items-center ${isPriceUp ? "text-green-500" : "text-red-500"}`}>
-              {isPriceUp ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
-              <span>
-                ${Math.abs(priceChange).toFixed(2)} ({priceChangePercentage.toFixed(2)}%)
-              </span>
+        {/* Header with stock name and current price */}
+        <div className="mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-2">
+                {Name} <span className="text-gray-400 text-lg">({Symbol})</span>
+              </h1>
+              <p className="text-gray-400">{Exchange} • {Sector} • {Industry}</p>
+            </div>
+
+            <div className="flex flex-col items-end">
+              <div className="text-3xl font-bold">${mockCurrentPrice.toFixed(2)}</div>
+              <div className={`flex items-center ${isPriceUp ? "text-green-400" : "text-red-400"}`}>
+                {isPriceUp ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
+                <span>${Math.abs(priceChange).toFixed(2)} ({priceChangePercentage.toFixed(2)}%)</span>
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Main content with tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          {/* Tabs List */}
+          <TabsList className="mb-4 bg-gray-900">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white">Overview</TabsTrigger>
+            <TabsTrigger value="chart" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white">Chart</TabsTrigger>
+            <TabsTrigger value="financials" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white">Financials</TabsTrigger>
+            <TabsTrigger value="analysts" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white">Analysts</TabsTrigger>
+            <TabsTrigger value="news" className="data-[state=active]:bg-gray-800 data-[state=active]:text-white">News</TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Key Stats */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">Key Statistics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">Market Cap</p>
+                    <p className="text-lg font-medium text-white">{formatNumber(MarketCapitalization)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">P/E Ratio</p>
+                    <p className="text-lg font-medium text-white">{PERatio}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">EPS</p>
+                    <p className="text-lg font-medium text-white">${EPS}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">Dividend Yield</p>
+                    <p className="text-lg font-medium text-white">{formatPercentage(DividendYield)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">52-Week High</p>
+                    <p className="text-lg font-medium text-white">${weekHigh}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">52-Week Low</p>
+                    <p className="text-lg font-medium text-white">${weekLow}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-gray-400">Profit Margin</p>
+                    <p className="text-lg font-medium text-white">{formatPercentage(ProfitMargin)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* About */}
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">About {Name}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-gray-200">{Description}</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <Building className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-white">Headquarters</p>
+                        <p className="text-gray-400">{Address}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Globe className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-white">Website</p>
+                        <a
+                          href={OfficialSite}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:underline"
+                        >
+                          {OfficialSite}
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-2">
+                      <BarChart3 className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-white">Sector & Industry</p>
+                        <p className="text-gray-400">
+                          {Sector} • {Industry}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <DollarSign className="h-5 w-5 text-gray-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-white">Currency</p>
+                        <p className="text-gray-400">{stockData.Currency}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Chart Tab */}
+          <TabsContent value="chart">
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">Price Chart</CardTitle>
+                <CardDescription className="text-gray-400">Historical price data for {Symbol}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-black rounded-md overflow-hidden">
+                  <TradingViewWidget symbol={Symbol} />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Financials Tab */}
+          <TabsContent value="financials">
+            <Card className="bg-gray-900 border-gray-800 rounded-lg shadow-md">
+              <CardHeader className="pb-4 border-b border-gray-800">
+                <CardTitle className="text-xl font-semibold text-white">Financial Information</CardTitle>
+                <CardDescription className="text-gray-400">Key financial metrics and ratios</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8">
+                  {/* Profitability Section */}
+                  <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <h3 className="text-lg font-medium mb-4 text-white">Profitability</h3>
+                    <div className="space-y-4">
+                      {[
+                        { label: "Profit Margin", value: formatPercentage(stockData.ProfitMargin) },
+                        { label: "Operating Margin", value: formatPercentage(stockData.OperatingMarginTTM) },
+                        { label: "Return on Assets", value: `${stockData.ReturnOnAssetsTTM}%` },
+                        { label: "Return on Equity", value: `${stockData.ReturnOnEquityTTM}%` },
+                      ].map((item, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                          <span className="text-gray-400">{item.label}</span>
+                          <span className="font-medium text-white">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Valuation Section */}
+                  <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <h3 className="text-lg font-medium mb-4 text-white">Valuation</h3>
+                    <div className="space-y-4">
+                      {[
+                        { label: "P/E Ratio (Trailing)", value: stockData.TrailingPE },
+                        { label: "P/E Ratio (Forward)", value: stockData.ForwardPE },
+                        { label: "Price to Sales", value: stockData.PriceToSalesRatioTTM },
+                        { label: "Price to Book", value: stockData.PriceToBookRatio },
+                      ].map((item, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                          <span className="text-gray-400">{item.label}</span>
+                          <span className="font-medium text-white">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Growth Section */}
+                  <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <h3 className="text-lg font-medium mb-4 text-white">Growth</h3>
+                    <div className="space-y-4">
+                      {[
+                        { label: "Quarterly Earnings Growth (YoY)", value: formatPercentage(stockData.QuarterlyEarningsGrowthYOY) },
+                        { label: "Quarterly Revenue Growth (YoY)", value: formatPercentage(stockData.QuarterlyRevenueGrowthYOY) },
+                      ].map((item, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                          <span className="text-gray-400">{item.label}</span>
+                          <span className="font-medium text-white">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dividends Section */}
+                  <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <h3 className="text-lg font-medium mb-4 text-white">Dividends</h3>
+                    <div className="space-y-4">
+                      {[
+                        { label: "Dividend Per Share", value: `$${stockData.DividendPerShare}` },
+                        { label: "Dividend Yield", value: formatPercentage(stockData.DividendYield) },
+                        { label: "Dividend Date", value: stockData.DividendDate },
+                        { label: "Ex-Dividend Date", value: stockData.ExDividendDate },
+                      ].map((item, index) => (
+                        <div key={index} className="flex justify-between items-center">
+                          <span className="text-gray-400">{item.label}</span>
+                          <span className="font-medium text-white">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+          {/* Analysts Tab */}
+          <TabsContent value="analysts">
+            <Card className="bg-gray-900 border-gray-800 rounded-lg shadow-md">
+              <CardHeader className="pb-4 border-b border-gray-800">
+                <CardTitle className="text-xl font-semibold text-white">Analyst Ratings</CardTitle>
+                <CardDescription className="text-gray-400">Professional opinions and price targets</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Consensus Section */}
+                  <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow">
+                    <h3 className="text-lg font-medium mb-4 text-white">Consensus</h3>
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-16 h-16 rounded-full bg-blue-900 flex items-center justify-center shadow-md">
+                        <span className="text-lg font-bold text-blue-300">Buy</span>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400">Based on {totalRatings} analyst ratings</p>
+                        <p className="text-lg font-medium text-white">Target: ${AnalystTargetPrice}</p>
+                      </div>
+                    </div>
+
+                    {/* Ratings Breakdown */}
+                    <div className="space-y-3 mt-4">
+                      {[
+                        { label: "Strong Buy", value: AnalystRatingStrongBuy, color: "text-green-400" },
+                        { label: "Buy", value: AnalystRatingBuy, color: "text-green-500" },
+                        { label: "Hold", value: AnalystRatingHold, color: "text-gray-400" },
+                        { label: "Sell", value: AnalystRatingSell, color: "text-red-400" },
+                        { label: "Strong Sell", value: AnalystRatingStrongSell, color: "text-red-500" },
+                      ].map((item, index) => (
+                        <div key={index} className="flex justify-between text-sm">
+                          <span className={item.color}>{item.label}</span>
+                          <span className="text-white">{item.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                {/* Price Target Section */}
+                <div className="bg-gray-800 p-5 rounded-lg shadow hover:shadow-lg transition-shadow flex flex-col justify-center">
+                  <h3 className="text-lg font-medium mb-4 text-white text-center">Price Target</h3>
+                  <div className="space-y-4">
+                    {[
+                      { label: "Current Price", value: `$${mockCurrentPrice.toFixed(2)}`, color: "text-white" },
+                      { label: "Analyst Target", value: `$${AnalystTargetPrice}`, color: "text-white" },
+                      {
+                        label: `Potential ${
+                          Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice ? "Upside" : "Downside"
+                        }`,
+                        value:
+                          Math.abs(
+                            ((Number.parseFloat(AnalystTargetPrice) - mockCurrentPrice) / mockCurrentPrice) * 100,
+                          ).toFixed(2) + "%",
+                        color:
+                          Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice
+                            ? "text-green-400"
+                            : "text-red-400",
+                      },
+                      {
+                        label: "52-Week Range",
+                        value: `$${weekLow} - $${weekHigh}`,
+                        color: "text-white",
+                      },
+                    ].map((item, index) => (
+                      <div key={index} className="flex justify-between items-center">
+                        <span className="text-gray-400">{item.label}</span>
+                        <span className={`font-medium ${item.color}`}>{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+          {/* News Tab */}
+          <TabsContent value="news">
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-white">Latest News</CardTitle>
+                <CardDescription className="text-gray-400">Recent news and updates about {Name}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* News content placeholder - this would be populated with real news data */}
+                <div className="space-y-6" id="stock-news-container">
+                  {/* This div will be populated with news data */}
+                  <div className="p-8 border border-dashed border-gray-700 rounded-lg flex items-center justify-center">
+                    <p className="text-gray-400 text-center">News content will be loaded here</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-
-      {/* Main content with tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="chart">Chart</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="analysts">Analysts</TabsTrigger>
-          <TabsTrigger value="news">News</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
-          {/* Key Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Key Statistics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Market Cap</p>
-                  <p className="text-lg font-medium">{formatNumber(MarketCapitalization)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">P/E Ratio</p>
-                  <p className="text-lg font-medium">{PERatio}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">EPS</p>
-                  <p className="text-lg font-medium">${EPS}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Dividend Yield</p>
-                  <p className="text-lg font-medium">{formatPercentage(DividendYield)}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">52-Week High</p>
-                  <p className="text-lg font-medium">${weekHigh}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">52-Week Low</p>
-                  <p className="text-lg font-medium">${weekLow}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">Profit Margin</p>
-                  <p className="text-lg font-medium">{formatPercentage(ProfitMargin)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* About */}
-          <Card>
-            <CardHeader>
-              <CardTitle>About {Name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p>{Description}</p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <Building className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Headquarters</p>
-                      <p className="text-muted-foreground">{Address}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Globe className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Website</p>
-                      <a
-                        href={OfficialSite}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-500 hover:underline"
-                      >
-                        {OfficialSite}
-                      </a>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2">
-                    <BarChart3 className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Sector & Industry</p>
-                      <p className="text-muted-foreground">
-                        {Sector} • {Industry}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Currency</p>
-                      <p className="text-muted-foreground">{stockData.Currency}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Chart Tab */}
-        <TabsContent value="chart">
-          <Card>
-            <CardHeader>
-              <CardTitle>Price Chart</CardTitle>
-              <CardDescription>Historical price data for {Symbol}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-black rounded-md overflow-hidden">
-                <TradingViewWidget symbol={Symbol} />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Financials Tab */}
-        <TabsContent value="financials">
-          <Card>
-            <CardHeader>
-              <CardTitle>Financial Information</CardTitle>
-              <CardDescription>Key financial metrics and ratios</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Profitability</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Profit Margin</span>
-                      <span className="font-medium">{formatPercentage(stockData.ProfitMargin)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Operating Margin</span>
-                      <span className="font-medium">{formatPercentage(stockData.OperatingMarginTTM)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Return on Assets</span>
-                      <span className="font-medium">{stockData.ReturnOnAssetsTTM}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Return on Equity</span>
-                      <span className="font-medium">{stockData.ReturnOnEquityTTM}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Valuation</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">P/E Ratio (Trailing)</span>
-                      <span className="font-medium">{stockData.TrailingPE}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">P/E Ratio (Forward)</span>
-                      <span className="font-medium">{stockData.ForwardPE}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Price to Sales</span>
-                      <span className="font-medium">{stockData.PriceToSalesRatioTTM}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Price to Book</span>
-                      <span className="font-medium">{stockData.PriceToBookRatio}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Growth</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Quarterly Earnings Growth (YoY)</span>
-                      <span className="font-medium">
-                        {formatPercentage(stockData.QuarterlyEarningsGrowthYOY)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Quarterly Revenue Growth (YoY)</span>
-                      <span className="font-medium">{formatPercentage(stockData.QuarterlyRevenueGrowthYOY)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Dividends</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Dividend Per Share</span>
-                      <span className="font-medium">${stockData.DividendPerShare}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Dividend Yield</span>
-                      <span className="font-medium">{formatPercentage(stockData.DividendYield)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Dividend Date</span>
-                      <span className="font-medium">{stockData.DividendDate}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Ex-Dividend Date</span>
-                      <span className="font-medium">{stockData.ExDividendDate}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Analysts Tab */}
-        <TabsContent value="analysts">
-          <Card>
-            <CardHeader>
-              <CardTitle>Analyst Ratings</CardTitle>
-              <CardDescription>Professional opinions and price targets</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Consensus</h3>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                      <span className="text-lg font-bold text-blue-700">Buy</span>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Based on {totalRatings} analyst ratings</p>
-                      <p className="text-lg font-medium">Target: ${AnalystTargetPrice}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 mt-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-green-600">Strong Buy</span>
-                      <span>{AnalystRatingStrongBuy}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-green-500">Buy</span>
-                      <span>{AnalystRatingBuy}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-500">Hold</span>
-                      <span>{AnalystRatingHold}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-red-500">Sell</span>
-                      <span>{AnalystRatingSell}</span>
-                    </div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-red-600">Strong Sell</span>
-                      <span>{AnalystRatingStrongSell}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Price Target</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Current Price</span>
-                      <span className="font-medium">${mockCurrentPrice.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Analyst Target</span>
-                      <span className="font-medium">${AnalystTargetPrice}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">
-                        Potential {Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice ? "Upside" : "Downside"}
-                      </span>
-                      <span
-                        className={`font-medium ${Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice ? "text-green-500" : "text-red-500"}`}
-                      >
-                        {Math.abs(
-                          ((Number.parseFloat(AnalystTargetPrice) - mockCurrentPrice) / mockCurrentPrice) * 100,
-                        ).toFixed(2)}
-                        %
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">52-Week Range</span>
-                      <span className="font-medium">
-                        ${weekLow} - ${weekHigh}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* News Tab */}
-        <TabsContent value="news">
-          <Card>
-            <CardHeader>
-              <CardTitle>Latest News</CardTitle>
-              <CardDescription>Recent news and updates about {Name}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* News content placeholder - this would be populated with real news data */}
-              <div className="space-y-6" id="stock-news-container">
-                {/* This div will be populated with news data */}
-                <div className="p-8 border border-dashed rounded-lg flex items-center justify-center">
-                  <p className="text-muted-foreground text-center">News content will be loaded here</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 };

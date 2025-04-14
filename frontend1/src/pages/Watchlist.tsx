@@ -1,7 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { tsParticles } from "tsparticles-engine";
-import Particles from "react-tsparticles";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,7 +12,9 @@ import {
   Star,
   XCircle,
   CalendarClock,
-  DollarSign
+  DollarSign,
+  Wifi, // Icon for connection status
+  WifiOff // Icon for disconnection status
 } from "lucide-react";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,25 +26,37 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { io, Socket } from "socket.io-client"; // Import socket.io-client
+
+// Define structure for real-time price data
+interface PriceData {
+  price?: number;
+  change?: number;
+  changePercent?: number;
+  prevClose?: number; // Store previous close if available
+  updatedAt?: Date;
+  // You can add rawData if needed: rawData?: any;
+}
+
+// Define structure for the price state map
+interface PriceState {
+  [ticker: string]: PriceData;
+}
 
 interface Stock {
   stock_name: string;
-  Price: number;
-  volume: number;
+  // Removed Price and volume as they will come from real-time data or initial fetch
+  // Price: number;
+  // volume: number;
 }
 
-interface Watchlist {
+interface WatchlistData { // Renamed from Watchlist to avoid conflict
   s_no: number;
   watchlistName: string;
   stocks: Stock[];
 }
 
-// Add Tweet interface
-interface Tweet {
-  id: number;
-  text: string;
-}
-
+// --- TradingViewWidget component remains the same ---
 function TradingViewWidget({ symbol }: { symbol: string }) {
   const container = useRef<HTMLDivElement>(null);
 
@@ -83,110 +94,205 @@ function TradingViewWidget({ symbol }: { symbol: string }) {
     </div>
   );
 }
+// --- End of TradingViewWidget component ---
+
 
 const Watchlist = () => {
-  const initialWatchlists: Watchlist[] = [
-    {
-      s_no: 1,
-      watchlistName: "Tech Stocks",
-      stocks: [
-        { stock_name: "AAPL", Price: 175.25, volume: 20000 },
-        { stock_name: "MSFT", Price: 315.5, volume: 18000 },
-        { stock_name: "GOOGL", Price: 2800.75, volume: 12000 },
-      ],
-    },
-    {
-      s_no: 2,
-      watchlistName: "Energy Sector",
-      stocks: [
-        { stock_name: "XOM", Price: 105.3, volume: 25000 },
-        { stock_name: "CVX", Price: 160.45, volume: 14000 },
-      ],
-    },
-    {
-      s_no: 3,
-      watchlistName: "Cryptocurrency",
-      stocks: [
-        { stock_name: "BTC", Price: 43250.65, volume: 5000 },
-        { stock_name: "ETH", Price: 3200.4, volume: 8000 },
-      ],
-    },
+  // Assume userId is obtained from auth context or props
+  // For demonstration, using a hardcoded ID. Replace with your actual user ID logic.
+  const userId = "user123"; 
+
+  // Mock initial watchlists (stocks only contain names now)
+  const initialWatchlists: WatchlistData[] = [
+    { s_no: 1, watchlistName: "Tech Stocks", stocks: [{ stock_name: "AAPL" }, { stock_name: "MSFT" }, { stock_name: "GOOGL" }] },
+    { s_no: 2, watchlistName: "Energy Sector", stocks: [{ stock_name: "XOM" }, { stock_name: "CVX" }] },
+    { s_no: 3, watchlistName: "Cryptocurrency", stocks: [{ stock_name: "BTC" }, { stock_name: "ETH" }] }, // Assuming socket server handles crypto too
   ];
 
-  const [watchlists, setWatchlists] = useState<Watchlist[]>(initialWatchlists);
+  const [watchlists, setWatchlists] = useState<WatchlistData[]>(initialWatchlists);
   const [activeWatchlistIndex, setActiveWatchlistIndex] = useState(0);
   const [newWatchlistName, setNewWatchlistName] = useState("");
   const [newStockTicker, setNewStockTicker] = useState("");
-  const [selectedStock, setSelectedStock] = useState("AAPL");
+  const [selectedStock, setSelectedStock] = useState(watchlists[0]?.stocks[0]?.stock_name || "AAPL");
   const [view, setView] = useState<"table" | "chart">("table");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddWatchlist, setShowAddWatchlist] = useState(false);
-  const [tweets, setTweets] = useState<Tweet[]>([]); // Add tweets state
+
+  // --- Socket.IO State ---
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [socketStatus, setSocketStatus] = useState("Disconnected");
+  const [priceData, setPriceData] = useState<PriceState>({});
+  const [subscribedTickers, setSubscribedTickers] = useState<Set<string>>(new Set());
+  const currentWatchlistTickersRef = useRef<string[]>([]); // Ref to hold tickers for the current active watchlist
+
   const activeWatchlist = watchlists[activeWatchlistIndex];
 
-  // Add tweet effect
+  // --- Socket Connection Effect ---
   useEffect(() => {
-    const tweetMessages = [
-      "AAPL up by 2% in pre-market trading",
-      "TSLA announces new battery technology",
-      "Market sentiment bullish on tech stocks",
-      "Federal Reserve interest rate decision tomorrow",
-      "Gold prices hit new all-time high",
-      "BTC surges past $60,000 mark",
-      "AMZN acquires autonomous vehicle startup",
-      "GOOGL partners with major healthcare provider",
-      "NASDAQ reaches record high",
-      "Oil prices drop amid demand concerns",
-    ];
+    if (!userId) {
+      console.log("User ID not available, skipping socket connection.");
+      return;
+    }
 
-    const addTweetInterval = setInterval(() => {
-      setTweets((prev) => {
-        const newTweet = {
-          id: Date.now(),
-          text: tweetMessages[Math.floor(Math.random() * tweetMessages.length)],
+    console.log(`Attempting to connect socket for userId: ${userId}`);
+    // Connect to the socket server (update URL if needed)
+    const newSocket = io('http://localhost:8003', {
+      transports: ['websocket', 'polling'] // Match transports from example
+    });
+
+    setSocket(newSocket);
+    setSocketStatus('Connecting...');
+
+    newSocket.on('connect', () => {
+      setIsConnected(true);
+      setSocketStatus(`Connected (ID: ${newSocket.id})`);
+      console.log(`Socket connected: ${newSocket.id}, Transport: ${newSocket.io.engine.transport.name}`);
+      // Authenticate with the server using the userId
+      newSocket.emit('authenticate', userId);
+      console.log(`Emitted authenticate event for userId: ${userId}`);
+    });
+
+    newSocket.on('disconnect', () => {
+      setIsConnected(false);
+      setSocketStatus('Disconnected');
+      setSubscribedTickers(new Set()); // Clear subscriptions on disconnect
+      setPriceData({}); // Optionally clear price data on disconnect
+      console.log('Socket disconnected');
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('Socket Error:', error);
+      setSocketStatus(`Error: ${error.message || JSON.stringify(error)}`);
+    });
+
+    // --- Price Update Handler ---
+    newSocket.on('price', (data: { ticker: string; price: number; prevClose?: number /* Add other fields if sent */ }) => {
+      // console.log('Raw price data received:', data);
+      const ticker = data.ticker?.toUpperCase(); // Normalize ticker
+      if (!ticker) {
+        console.warn("Received price data without ticker:", data);
+        return;
+      }
+
+      setPriceData(prevData => {
+        const currentStockData = prevData[ticker] || {};
+        // Use received prevClose or existing one, else estimate (as in example)
+        const prevClose = data.prevClose ?? currentStockData.prevClose ?? data.price * 0.99;
+        const change = data.price - prevClose;
+        const changePercent = prevClose !== 0 ? (change / prevClose) * 100 : 0;
+
+        return {
+          ...prevData,
+          [ticker]: {
+            price: data.price,
+            prevClose: prevClose, // Store prevClose for future calculations
+            change: change,
+            changePercent: changePercent,
+            updatedAt: new Date(),
+          }
         };
-    
-        // Remove the oldest tweet if more than 5 tweets are active
-        const updatedTweets = [...prev, newTweet].slice(-5);
-    
-        return updatedTweets;
       });
-    
-      setTimeout(() => {
-        setTweets((prev) => prev.slice(1)); // Remove the first (oldest) tweet
-      }, 5000);
-    }, 2000);
+    });
 
+    newSocket.on('subscribed', (tickers: string[]) => {
+      console.log('Successfully subscribed to:', tickers);
+      setSubscribedTickers(prev => new Set([...prev, ...tickers.map(t => t.toUpperCase())]));
+    });
+
+    newSocket.on('unsubscribed', (tickers: string[]) => {
+      console.log('Successfully unsubscribed from:', tickers);
+       setSubscribedTickers(prev => {
+           const newSet = new Set(prev);
+           tickers.forEach(t => newSet.delete(t.toUpperCase()));
+           return newSet;
+       });
+        // Optionally remove price data for unsubscribed tickers
+        setPriceData(prevData => {
+            const newData = { ...prevData };
+            tickers.forEach(t => delete newData[t.toUpperCase()]);
+            return newData;
+        });
+    });
+    
+    newSocket.on('subscriptions_restored', (tickers: string[]) => {
+        console.log('Restored subscriptions:', tickers);
+        setSubscribedTickers(new Set(tickers.map(t => t.toUpperCase())));
+        // Optionally request initial prices for restored tickers if needed
+    });
+
+    // Cleanup on component unmount or userId change
     return () => {
-      clearInterval(addTweetInterval);
+      console.log('Disconnecting socket...');
+      newSocket.disconnect();
+      setIsConnected(false);
+      setSocketStatus('Disconnected');
+      setSubscribedTickers(new Set());
+       setPriceData({});
     };
-  }, []);
+  }, [userId]); // Reconnect if userId changes
+
+  // --- Subscription Management Effect ---
+  useEffect(() => {
+    if (!socket || !isConnected || !activeWatchlist) {
+      return; // Only manage subscriptions if connected and watchlist exists
+    }
+
+    const newTickers = activeWatchlist.stocks.map(stock => stock.stock_name.toUpperCase());
+    const oldTickers = currentWatchlistTickersRef.current;
+
+    const tickersToUnsubscribe = oldTickers.filter(ticker => !newTickers.includes(ticker));
+    const tickersToSubscribe = newTickers.filter(ticker => !oldTickers.includes(ticker));
+
+    // Unsubscribe from stocks no longer in the active watchlist
+    if (tickersToUnsubscribe.length > 0) {
+      console.log('Unsubscribing from:', tickersToUnsubscribe);
+      socket.emit('unsubscribe', tickersToUnsubscribe);
+    }
+
+    // Subscribe to new stocks in the active watchlist
+    if (tickersToSubscribe.length > 0) {
+      console.log('Subscribing to:', tickersToSubscribe);
+      socket.emit('subscribe', tickersToSubscribe);
+    }
+
+    // Update the ref for the next comparison
+    currentWatchlistTickersRef.current = newTickers;
+
+  }, [activeWatchlist, isConnected, socket]); // Rerun when watchlist changes or connection status changes
+
 
   const createWatchlist = () => {
     if (!newWatchlistName.trim()) return;
     setWatchlists([
       ...watchlists,
-      { 
-        s_no: watchlists.length + 1, 
-        watchlistName: newWatchlistName, 
-        stocks: [] 
+      {
+        s_no: watchlists.length + 1,
+        watchlistName: newWatchlistName,
+        stocks: []
       },
     ]);
     setNewWatchlistName("");
     setShowAddWatchlist(false);
+    // Optionally switch to the new watchlist
+    // setActiveWatchlistIndex(watchlists.length);
   };
 
   const addStock = () => {
     if (!newStockTicker.trim()) return;
-    const mockPrice = Math.random() * 1000 + 50;
-    const mockVolume = Math.floor(Math.random() * 100000) + 1000;
+    const tickerToAdd = newStockTicker.toUpperCase();
+
+    // Prevent adding duplicates to the same watchlist
+    if (activeWatchlist.stocks.some(s => s.stock_name.toUpperCase() === tickerToAdd)) {
+        alert(`${tickerToAdd} is already in this watchlist.`);
+        setNewStockTicker("");
+        return;
+    }
+
 
     const newStock: Stock = {
-      stock_name: newStockTicker.toUpperCase(),
-      Price: mockPrice,
-      volume: mockVolume,
+      stock_name: tickerToAdd,
     };
-
     const updatedWatchlists = watchlists.map((watchlist, index) => {
       if (index === activeWatchlistIndex) {
         return {
@@ -196,546 +302,438 @@ const Watchlist = () => {
       }
       return watchlist;
     });
-
     setWatchlists(updatedWatchlists);
     setNewStockTicker("");
+
+    // Immediately subscribe if connected
+    if (socket && isConnected) {
+        console.log('Subscribing to newly added stock:', tickerToAdd);
+        socket.emit('subscribe', [tickerToAdd]);
+    }
   };
 
+  // Function to remove stock (Example - requires adding remove buttons)
+  const removeStock = (tickerToRemove: string) => {
+      const tickerUpper = tickerToRemove.toUpperCase();
+      const updatedWatchlists = watchlists.map((watchlist, index) => {
+          if (index === activeWatchlistIndex) {
+              return {
+                  ...watchlist,
+                  stocks: watchlist.stocks.filter(stock => stock.stock_name.toUpperCase() !== tickerUpper),
+              };
+          }
+          return watchlist;
+      });
+      setWatchlists(updatedWatchlists);
+
+      // Unsubscribe if connected
+      if (socket && isConnected) {
+          console.log('Unsubscribing from removed stock:', tickerUpper);
+          socket.emit('unsubscribe', [tickerUpper]);
+      }
+  };
+
+
   const handleWatchlistNavigation = (direction: "prev" | "next") => {
+    // --- Important: Unsubscribe from current before switching ---
+    // (The useEffect hook handles this now, but explicit unsubscribe here could be faster)
+    // if (socket && isConnected && activeWatchlist) {
+    //   const currentTickers = activeWatchlist.stocks.map(s => s.stock_name.toUpperCase());
+    //   if (currentTickers.length > 0) {
+    //      console.log('Unsubscribing before navigation:', currentTickers);
+    //      socket.emit('unsubscribe', currentTickers);
+    //   }
+    // }
+
     setActiveWatchlistIndex(prev => {
       if (direction === "prev" && prev > 0) return prev - 1;
       if (direction === "next" && prev < watchlists.length - 1) return prev + 1;
       return prev;
     });
+     // Clear search when changing watchlist
+    setSearchQuery("");
+    // Set selected stock for chart view
+    const nextWatchlistIndex = direction === "prev"
+        ? Math.max(0, activeWatchlistIndex - 1)
+        : Math.min(watchlists.length - 1, activeWatchlistIndex + 1);
+    setSelectedStock(watchlists[nextWatchlistIndex]?.stocks[0]?.stock_name || "AAPL");
   };
 
-  const filteredStocks = activeWatchlist.stocks.filter(stock => 
+  // Filter stocks based on search query
+  const filteredStocks = activeWatchlist?.stocks.filter(stock =>
     stock.stock_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) || []; // Handle case where activeWatchlist might be undefined briefly
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-gray-100 relative overflow-hidden">
-      <Particles
-        id="tsparticles"
-        className="absolute inset-0 z-0"
-        options={{
-          particles: {
-            number: { value: 50 },
-            color: { value: ["#3b82f6", "#8b5cf6", "#10b981"] },
-            opacity: { value: 0.3 },
-            size: { value: 1 },
-            move: {
-              enable: true,
-              speed: 0.5,
-              direction: "none",
-              random: true,
-              straight: false,
-              out_mode: "out",
-              bounce: false,
-            },
-          },
-          interactivity: {
-            events: {
-              onhover: {
-                enable: true,
-                mode: "repulse",
-              },
-            },
-          },
-          retina_detect: true,
-        }}
-      />
-  
-      <AnimatePresence>
-        {tweets.map((tweet) => (
-          <motion.div
-            key={tweet.id}
-            initial={{ opacity: 0, y: "100vh" }}
-            animate={{ opacity: 0.7, y: "-100vh" }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 8, ease: "linear" }}
-            className="fixed pointer-events-none text-sm z-10 text-gray-300/80"
-            style={{
-              left: `${Math.random() * 80 + 10}%`,
-              bottom: "0px",
-              textShadow: "0 0 8px rgba(255,255,255,0.1)"
-            }}
-          >
-            {tweet.text}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-
-      <div className="w-full max-w-7xl mx-auto p-6 relative z-10 pt-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 0.5, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-
-      <div className="w-full max-w-7xl mx-auto p-6 relative z-10 pt-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <Card className="bg-gray-800/20 backdrop-blur-xl border border-gray-600/20 shadow-xl rounded-xl overflow-hidden">
-            <CardHeader className="border-b border-gray-600/20 p-4 bg-gray-800/30">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div whileHover={{ scale: 1.05 }}>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleWatchlistNavigation("prev")}
-                            disabled={activeWatchlistIndex === 0}
-                            className="text-slate-400 hover:text-indigo-400 hover:bg-gray-700/20 rounded-full h-8 w-8"
-                          >
-                            <ChevronLeft size={18} />
-                          </Button>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>Previous watchlist</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs px-2 py-1 bg-indigo-900/30 text-indigo-300 border-indigo-600/30">
-                      {activeWatchlistIndex + 1}/{watchlists.length}
-                    </Badge>
-                    <motion.h2 
-                      className="text-lg font-semibold tracking-tight text-white flex items-center gap-2"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+    <div className="min-h-screen bg-[#0a0a0f] text-slate-200 p-6 font-sans">
+      <Card className="bg-[#121218] border border-[#27272f] shadow-xl rounded-xl overflow-hidden">
+        <CardHeader className="border-b border-[#27272f] p-4 bg-[#1a1a24]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Watchlist Navigation and Title */}
+            <div className="flex items-center gap-3">
+               {/* Prev Button */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleWatchlistNavigation("prev")}
+                      disabled={activeWatchlistIndex === 0}
+                      className="text-slate-400 hover:text-indigo-400 hover:bg-[#24243c] rounded-full h-8 w-8"
                     >
-                      <Star size={16} className="text-indigo-400" />
-                      {activeWatchlist.watchlistName}
-                    </motion.h2>
-                  </div>
-                  
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div whileHover={{ scale: 1.05 }}>
-                          <Button 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => handleWatchlistNavigation("next")}
-                            disabled={activeWatchlistIndex === watchlists.length - 1}
-                            className="text-slate-400 hover:text-indigo-400 hover:bg-gray-700/20 rounded-full h-8 w-8"
-                          >
-                            <ChevronRight size={18} />
-                          </Button>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>Next watchlist</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div whileHover={{ scale: 1.1 }}>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => setShowAddWatchlist(true)}
-                            className="text-slate-400 hover:text-indigo-400 hover:bg-gray-700/20 rounded-full h-8 w-8"
-                          >
-                            <Plus size={18} />
-                          </Button>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>Add new watchlist</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <Dialog open={showAddWatchlist} onOpenChange={setShowAddWatchlist}>
-                    <DialogContent className="bg-gray-800/30 backdrop-blur-lg border-gray-600/20 sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle className="text-slate-100 flex items-center gap-2">
-                          <Plus size={16} className="text-indigo-400" /> 
-                          Create New Watchlist
-                        </DialogTitle>
-                        <DialogDescription className="text-slate-400">
-                          Enter a name for your new watchlist below.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-4">
-                        <Input
-                          value={newWatchlistName}
-                          onChange={(e) => setNewWatchlistName(e.target.value)}
-                          placeholder="Enter watchlist name"
-                          className="bg-gray-700/20 border-gray-600/20 text-slate-200 focus-visible:ring-indigo-500"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => setShowAddWatchlist(false)} 
-                          className="border-gray-600/20 text-slate-300 hover:bg-gray-700/20"
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          onClick={createWatchlist} 
-                          className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-                        >
-                          Create
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                    <Input
-                      placeholder="Search stocks..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-8 pl-8 bg-gray-700/20 border-gray-600/20 text-slate-200 text-sm w-40 focus-visible:ring-indigo-500"
-                    />
-                  </div>
-                  
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <motion.div whileHover={{ scale: 1.05 }}>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="gap-1 h-8 text-xs border-gray-600/20 bg-gray-700/20 hover:bg-gray-600/30 hover:text-indigo-300"
-                              >
-                                <Plus size={14} /> Add Stock
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="bg-gray-800/30 backdrop-blur-lg border-gray-600/20">
-                              <DialogHeader>
-                                <DialogTitle className="text-slate-100 flex items-center gap-2">
-                                  <Plus size={16} className="text-indigo-400" />
-                                  Add Stock to {activeWatchlist.watchlistName}
-                                </DialogTitle>
-                                <DialogDescription className="text-slate-400">
-                                  Enter a stock ticker symbol to add to your watchlist.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="flex gap-2 mt-2">
-                                <Input
-                                  value={newStockTicker}
-                                  onChange={(e) => setNewStockTicker(e.target.value)}
-                                  placeholder="Enter stock ticker (e.g. AAPL)"
-                                  className="bg-gray-700/20 border-gray-600/20 text-slate-200 focus-visible:ring-indigo-500"
-                                />
-                              </div>
-                              <DialogFooter>
-                                <Button 
-                                  variant="outline" 
-                                  className="border-gray-600/20 text-slate-300 hover:bg-gray-700/20"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button 
-                                  onClick={addStock} 
-                                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white"
-                                >
-                                  Add
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
-                        </motion.div>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom">
-                        <p>Add a new stock to this watchlist</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <div className="hidden md:block">
-                    <Toggle
-                      aria-label="Toggle view"
-                      pressed={view === "chart"}
-                      onPressedChange={() => setView(view === "table" ? "chart" : "table")}
-                      className="bg-gray-700/20 hover:bg-gray-600/30 data-[state=on]:bg-indigo-600 border-gray-600/20 h-8"
-                    >
-                      {view === "table" ? (
-                        <div className="flex items-center gap-1">
-                          <LineChart size={14} /> Chart
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1">
-                          <BarChart4 size={14} /> Table
-                        </div>
-                      )}
-                    </Toggle>
-                  </div>
-                </div>
+                      <ChevronLeft size={18} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom"><p>Previous watchlist</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* Watchlist Name and Count */}
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs font-normal px-2 py-1 bg-[#24243c] text-indigo-300 border-indigo-600/30">
+                  {activeWatchlistIndex + 1}/{watchlists.length}
+                </Badge>
+                <h2 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+                  <Star size={16} className="text-indigo-400" />
+                  {activeWatchlist?.watchlistName || "Loading..."}
+                </h2>
               </div>
-            </CardHeader>
 
-            {view === "table" ? (
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="border-gray-600/20 bg-gray-800/30 hover:bg-transparent">
-                        <TableHead className="text-slate-400 font-medium">Symbol</TableHead>
-                        <TableHead className="text-slate-400 font-medium">Price</TableHead>
-                        <TableHead className="text-slate-400 font-medium">Change</TableHead>
-                        <TableHead className="text-slate-400 font-medium">Change %</TableHead>
-                        <TableHead className="text-slate-400 font-medium">Volume</TableHead>
-                        <TableHead className="text-slate-400 font-medium">High</TableHead>
-                        <TableHead className="text-slate-400 font-medium">Low</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredStocks.map((stock, idx) => {
-                        const change = (Math.random() * 10 - 5).toFixed(2);
-                        const isPositive = parseFloat(change) > 0;
-                        const changePercent = (Math.abs(parseFloat(change)) / stock.Price * 100).toFixed(2);
-                        const high = (stock.Price * 1.05).toFixed(2);
-                        const low = (stock.Price * 0.95).toFixed(2);
-
-                        return (
-                          <motion.tr 
-                            key={idx} 
-                            className="border-gray-600/20 cursor-pointer transition-colors hover:bg-gray-800/20"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            onClick={() => {
-                              setSelectedStock(stock.stock_name);
-                              setView("chart");
-                            }}
-                          >
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <DollarSign size={14} className="text-indigo-400" />
-                                <span className="font-medium text-white">{stock.stock_name}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium text-slate-200">
-                              ${stock.Price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </TableCell>
-                            
-                            <TableCell className={`${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              <motion.div 
-                                className="flex items-center gap-1"
-                                whileHover={{ scale: 1.05 }}
-                              >
-                                {isPositive ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                ${Math.abs(parseFloat(change)).toFixed(2)}
-                              </motion.div>
-                            </TableCell>
-
-                            <TableCell className={`${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              <motion.div 
-                                className="flex items-center gap-1 font-medium"
-                                whileHover={{ scale: 1.05 }}
-                              >
-                                {isPositive ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                                {changePercent}%
-                              </motion.div>
-                            </TableCell>
-                            
-                            <TableCell>
-                              <Badge variant="outline" className="bg-indigo-900/30 border-indigo-600/30 text-indigo-300">
-                                {(stock.volume / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}K
-                              </Badge>
-                            </TableCell>
-                            
-                            <TableCell className="text-emerald-400">${high}</TableCell>
-                            <TableCell className="text-rose-400">${low}</TableCell>
-                          </motion.tr>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                  
-                  {filteredStocks.length === 0 && (
-                    <motion.div 
-                      className="flex flex-col items-center justify-center py-12 text-slate-400"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <XCircle size={32} className="mb-2 opacity-50" />
-                      <p>No stocks found matching your search</p>
-                      <motion.div whileHover={{ scale: 1.05 }}>
-                        <Button 
-                          variant="link" 
-                          onClick={() => setSearchQuery("")} 
-                          className="text-indigo-400 hover:text-indigo-300 mt-2"
-                        >
-                          Clear search
-                        </Button>
-                      </motion.div>
-                    </motion.div>
-                  )}
-                </div>
-              </CardContent>
-            ) : (
-              <div className="flex flex-col md:flex-row h-[600px]">
-                <div className="md:w-1/4 border-r border-gray-600/20 bg-gray-800/20">
-                  <div className="p-3 border-b border-gray-600/20">
-                    <div className="relative">
-                      <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                      <Input
-                        placeholder="Filter stocks..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 pl-8 bg-gray-700/20 border-gray-600/20 text-slate-200 text-sm focus-visible:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  <ScrollArea className="h-[calc(600px-3rem)]">
-                    {filteredStocks.map((stock, idx) => {
-                      const change = (Math.random() * 10 - 5).toFixed(2);
-                      const isPositive = parseFloat(change) > 0;
-                      const changePercent = (Math.abs(parseFloat(change)) / stock.Price * 100).toFixed(2);
-                      
-                      return (
-                        <motion.div 
-                          key={idx}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: idx * 0.05 }}
-                        >
-                          <div
-                            onClick={() => setSelectedStock(stock.stock_name)}
-                            className={`flex justify-between items-center p-3 hover:bg-gray-700/20 cursor-pointer transition-colors ${
-                              selectedStock === stock.stock_name ? "bg-gray-700/20 border-l-2 border-indigo-500" : ""
-                            }`}
-                          >
-                            <div>
-                              <div className="font-medium text-white flex items-center gap-1">
-                                <DollarSign size={12} className="text-indigo-400" />
-                                {stock.stock_name}
-                              </div>
-                              <div className="text-xs text-slate-400 mt-1">
-                                ${stock.Price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </div>
-                            </div>
-                            <div className={`text-sm font-medium ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              <div className="flex items-center gap-1">
-                                {isPositive ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                                {changePercent}%
-                              </div>
-                            </div>
-                          </div>
-                          {idx < filteredStocks.length - 1 && <Separator className="bg-gray-600/20" />}
-                        </motion.div>
-                      );
-                    })}
-                    
-                    {filteredStocks.length === 0 && (
-                      <motion.div 
-                        className="flex flex-col items-center justify-center py-12 text-slate-400"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+               {/* Next Button */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleWatchlistNavigation("next")}
+                        disabled={activeWatchlistIndex === watchlists.length - 1}
+                        className="text-slate-400 hover:text-indigo-400 hover:bg-[#24243c] rounded-full h-8 w-8"
                       >
-                        <XCircle size={24} className="mb-2 opacity-50" />
-                        <p className="text-sm">No stocks found</p>
-                        <motion.div whileHover={{ scale: 1.05 }}>
-                          <Button 
-                            variant="link" 
-                            onClick={() => setSearchQuery("")} 
-                            className="text-indigo-400 hover:text-indigo-300 mt-2 text-sm"
-                          >
-                            Clear search
+                        <ChevronRight size={18} />
+                      </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom"><p>Next watchlist</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
+              {/* Add Watchlist Button */}
+              <TooltipProvider>
+                <Tooltip>
+                   <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowAddWatchlist(true)}
+                        className="text-slate-400 hover:text-indigo-400 hover:bg-[#24243c] rounded-full h-8 w-8"
+                      >
+                        <Plus size={18} />
+                      </Button>
+                  </TooltipTrigger>
+                   <TooltipContent side="bottom"><p>Add new watchlist</p></TooltipContent>
+                 </Tooltip>
+              </TooltipProvider>
+
+               {/* Add Watchlist Dialog */}
+              <Dialog open={showAddWatchlist} onOpenChange={setShowAddWatchlist}>
+                 <DialogContent className="bg-[#1a1a24] border-[#27272f] sm:max-w-[425px]">
+                   <DialogHeader>
+                      <DialogTitle className="text-slate-100 flex items-center gap-2">
+                        <Plus size={16} className="text-indigo-400" /> Create New Watchlist
+                      </DialogTitle>
+                      <DialogDescription className="text-slate-400">Enter a name for your new watchlist.</DialogDescription>
+                   </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <Input
+                        value={newWatchlistName}
+                        onChange={(e) => setNewWatchlistName(e.target.value)}
+                        placeholder="Enter watchlist name"
+                        className="bg-[#24243c] border-[#27272f] text-slate-200 focus-visible:ring-indigo-500"
+                       />
+                    </div>
+                   <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddWatchlist(false)} className="border-[#27272f] text-slate-300 hover:bg-[#24243c]">Cancel</Button>
+                      <Button onClick={createWatchlist} className="bg-indigo-600 hover:bg-indigo-700 text-white">Create</Button>
+                   </DialogFooter>
+                 </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Right Side Controls: Search, Add Stock, View Toggle, Status */}
+            <div className="flex items-center gap-2">
+               {/* Search Input */}
+              <div className="relative">
+                <Search size={14} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search stocks..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 bg-[#24243c] border-[#27272f] text-slate-200 text-sm w-32 sm:w-40 focus-visible:ring-indigo-500"
+                />
+              </div>
+
+               {/* Add Stock Button & Dialog */}
+               <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                     <Dialog>
+                       <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="gap-1 h-8 text-xs border-[#27272f] bg-[#24243c] hover:bg-[#2a2a42] hover:text-indigo-300">
+                            <Plus size={14} /> Add Stock
                           </Button>
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </ScrollArea>
-                </div>
-                <div className="md:w-3/4 bg-gray-900/20">
-                  <div className="h-10 bg-gray-800/30 border-b border-gray-600/20 flex items-center px-4 justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="bg-indigo-900/30 border-indigo-600/30 text-indigo-300">
-                        {selectedStock}
-                      </Badge>
-                      <span className="text-xs text-slate-400">Daily Chart</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <motion.div whileHover={{ scale: 1.1 }}>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-200">
-                          <CalendarClock size={14} />
-                        </Button>
-                      </motion.div>
-                      <motion.div whileHover={{ scale: 1.1 }}>
-                        <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-200">
-                          <Sparkles size={14} />
-                        </Button>
-                      </motion.div>
-                    </div>
-                  </div>
-                  <TradingViewWidget symbol={selectedStock} />
-                </div>
-              </div>
-            )}
+                       </DialogTrigger>
+                       <DialogContent className="bg-[#1a1a24] border-[#27272f]">
+                         <DialogHeader>
+                            <DialogTitle className="text-slate-100 flex items-center gap-2">
+                                <Plus size={16} className="text-indigo-400" /> Add Stock to {activeWatchlist?.watchlistName}
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400">Enter a stock ticker symbol.</DialogDescription>
+                          </DialogHeader>
+                          <div className="flex gap-2 mt-2">
+                            <Input
+                                value={newStockTicker}
+                                onChange={(e) => setNewStockTicker(e.target.value)}
+                                placeholder="Enter stock ticker (e.g. AAPL)"
+                                className="bg-[#24243c] border-[#27272f] text-slate-200 focus-visible:ring-indigo-500"
+                             />
+                          </div>
+                          <DialogFooter>
+                             <Button variant="outline" onClick={() => setNewStockTicker('')} className="border-[#27272f] text-slate-300 hover:bg-[#24243c]">Cancel</Button>
+                             <Button onClick={addStock} className="bg-indigo-600 hover:bg-indigo-700">Add</Button>
+                          </DialogFooter>
+                       </DialogContent>
+                     </Dialog>
+                   </TooltipTrigger>
+                   <TooltipContent side="bottom"><p>Add stock to this watchlist</p></TooltipContent>
+                 </Tooltip>
+               </TooltipProvider>
 
-            <CardFooter className="border-t border-gray-600/20 p-3 flex justify-between items-center bg-gray-800/30">
-              <div className="text-xs text-slate-500 flex items-center gap-1">
-                <CalendarClock size={12} />
-                Last updated: {new Date().toLocaleTimeString()}
-              </div>
-              <div className="flex gap-2">
-                <motion.div whileHover={{ scale: 1.05 }}>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setView(view === "table" ? "chart" : "table")}
-                    className="gap-2 text-xs text-slate-400 hover:text-indigo-300 hover:bg-gray-700/20 h-8"
+                {/* View Toggle */}
+              <div className="hidden md:block">
+                 <Toggle
+                    aria-label="Toggle view"
+                    pressed={view === "chart"}
+                    onPressedChange={() => setView(view === "table" ? "chart" : "table")}
+                    className="bg-[#24243c] hover:bg-[#2a2a42] data-[state=on]:bg-indigo-600 border-[#27272f] h-8"
                   >
-                    {view === "table" ? <LineChart size={14} /> : <BarChart4 size={14} />}
-                    {view === "table" ? "View Chart" : "View Table"}
-                  </Button>
-                </motion.div>
+                    {view === "table" ? (
+                        <div className="flex items-center gap-1"><BarChart4 size={14} /> Table</div>
+                    ) : (
+                         <div className="flex items-center gap-1"><LineChart size={14} /> Chart</div>
+                    )}
+                  </Toggle>
               </div>
-            </CardFooter>
-          </Card>
-        </motion.div>
-      </div>
+              
+              {/* Socket Status Indicator */}
+              <TooltipProvider>
+                 <Tooltip>
+                   <TooltipTrigger>
+                      <div className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${isConnected ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+                      </div>
+                   </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>{socketStatus}</p></TooltipContent>
+                 </Tooltip>
+              </TooltipProvider>
 
-      <style>
-        {`
-          @keyframes gradientPulse {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-          .shadow-glow-blue {
-            box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
-          }
-          .drop-shadow-glow-green {
-            filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.3));
-          }
-          .drop-shadow-glow-red {
-            filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.3));
-          }
-          .animate-text-shimmer {
-            background-size: 200% auto;
-            animation: gradientPulse 3s ease infinite;
-          }
-        `}
-      </style>
-      </motion.div>
-    </div>
+            </div>
+          </div>
+        </CardHeader>
+
+        {/* Conditional Rendering: Table or Chart */}
+        {view === "table" ? (
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-[#27272f] bg-[#1a1a24] hover:bg-transparent">
+                    <TableHead className="text-slate-400 font-medium">Symbol</TableHead>
+                    <TableHead className="text-slate-400 font-medium">Price</TableHead>
+                    <TableHead className="text-slate-400 font-medium">Change</TableHead>
+                    <TableHead className="text-slate-400 font-medium">Change %</TableHead>
+                    {/* <TableHead className="text-slate-400 font-medium">Volume</TableHead>  */}
+                    {/* <TableHead className="text-slate-400 font-medium">High</TableHead> */}
+                    {/* <TableHead className="text-slate-400 font-medium">Low</TableHead> */}
+                     <TableHead className="text-slate-400 font-medium">Updated</TableHead>
+                     {/* Add header for Remove button if implementing */}
+                     {/* <TableHead className="text-slate-400 font-medium text-right">Actions</TableHead> */}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStocks.length > 0 ? filteredStocks.map((stock) => {
+                    const tickerUpper = stock.stock_name.toUpperCase();
+                    const currentPriceData = priceData[tickerUpper];
+                    const price = currentPriceData?.price;
+                    const change = currentPriceData?.change;
+                    const changePercent = currentPriceData?.changePercent;
+                    const updatedAt = currentPriceData?.updatedAt;
+
+                    const isPositive = change !== undefined && change >= 0;
+                    const changeClass = change === undefined ? 'text-slate-400' : (isPositive ? 'text-emerald-400' : 'text-rose-400');
+                    const arrow = change === undefined ? null : (isPositive ? <ArrowUp size={14} /> : <ArrowDown size={14} />);
+
+                    return (
+                      <TableRow
+                        key={tickerUpper}
+                        className="border-[#27272f] cursor-pointer transition-colors hover:bg-[#1a1a24]"
+                        onClick={() => {
+                           setSelectedStock(tickerUpper); // Use normalized ticker
+                           setView("chart");
+                        }}
+                      >
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {/* Use a generic icon or fetch logos later */}
+                            <DollarSign size={14} className="text-indigo-400" />
+                            <span className="font-medium text-white">{stock.stock_name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className={`font-medium ${price === undefined ? 'text-slate-500' : 'text-slate-200'}`}>
+                          {price !== undefined ? `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'Loading...'}
+                        </TableCell>
+                        <TableCell className={changeClass}>
+                          {change !== undefined ? (
+                             <div className="flex items-center gap-1">
+                               {arrow}
+                               {/* Show sign explicitly */}
+                               {change >= 0 ? '+' : ''}{change.toFixed(2)}
+                             </div>
+                           ) : (
+                            <span>--</span>
+                           )}
+                        </TableCell>
+                         <TableCell className={changeClass}>
+                           {changePercent !== undefined ? (
+                             <div className="flex items-center gap-1 font-medium">
+                               {arrow}
+                               {/* Show sign explicitly */}
+                               {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%
+                             </div>
+                           ) : (
+                            <span>--</span>
+                           )}
+                        </TableCell>
+                         <TableCell className="text-xs text-slate-500">
+                            {updatedAt ? updatedAt.toLocaleTimeString() : '--'}
+                        </TableCell>
+                         {/* Add Remove button cell if implementing */}
+                         {/* <TableCell className="text-right">
+                             <Button variant="ghost" size="icon" className="h-6 w-6 text-rose-500 hover:bg-rose-900/50" onClick={(e) => { e.stopPropagation(); removeStock(stock.stock_name); }}>
+                                 <XCircle size={14} />
+                             </Button>
+                         </TableCell> */}
+                      </TableRow>
+                    );
+                  }) : (
+                    <TableRow className="border-0">
+                        <TableCell colSpan={5} className="text-center py-12 text-slate-500">
+                             {activeWatchlist?.stocks.length === 0 ? (
+                                <>
+                                    <Star size={32} className="mb-2 opacity-50 mx-auto" />
+                                    <p>This watchlist is empty.</p>
+                                    <p className="text-xs">Use "Add Stock" to add symbols.</p>
+                                </>
+                             ) : (
+                                 <>
+                                    <XCircle size={32} className="mb-2 opacity-50 mx-auto" />
+                                    <p>No stocks match your search "{searchQuery}".</p>
+                                 </>
+                             )}
+                        </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        ) : (
+          // Chart View
+          <div className="p-0 h-[500px] bg-[#0a0a0f] flex">
+          {/* Stock List on the Left */}
+          <div className="w-[30%] bg-[#121218] border-r border-[#27272f] overflow-y-auto">
+            <div className="p-2 border-b border-[#27272f] bg-[#1a1a24]">
+              <h3 className="text-sm font-semibold text-slate-300">Stocks</h3>
+            </div>
+            <ul className="p-2">
+              {activeWatchlist?.stocks.map((stock) => {
+                const tickerUpper = stock.stock_name.toUpperCase();
+                const currentPriceData = priceData[tickerUpper];
+                const price = currentPriceData?.price;
+                const change = currentPriceData?.change;
+                const changePercent = currentPriceData?.changePercent;
+
+                const isPositive = change !== undefined && change >= 0;
+                const changeClass = change === undefined ? 'text-slate-400' : (isPositive ? 'text-emerald-400' : 'text-rose-400');
+                const arrow = change === undefined ? null : (isPositive ? <ArrowUp size={14} /> : <ArrowDown size={14} />);
+
+                return (
+                  <li
+                    key={tickerUpper}
+                    onClick={() => setSelectedStock(tickerUpper)}
+                    className={`cursor-pointer p-2 rounded-md transition-colors ${
+                      selectedStock === tickerUpper ? "bg-indigo-600/20" : "hover:bg-[#1a1a24]"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center text-sm">
+                      {/* Stock Name */}
+                      <span className="text-slate-200">{stock.stock_name}</span>
+                      {/* Price */}
+                      <span className={`font-medium ${price === undefined ? 'text-slate-500' : 'text-slate-200'}`}>
+                        {price !== undefined ? `$${price.toFixed(2)}` : '--'}
+                      </span>
+                    </div>
+                    {/* Change and Change Percent */}
+                    <div className={`flex justify-between items-center text-xs ${changeClass}`}>
+                      {change !== undefined && changePercent !== undefined ? (
+                        <>
+                          {arrow}
+                          {change >= 0 ? '+' : ''}{change.toFixed(2)} (
+                          {changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%)
+                        </>
+                      ) : (
+                        '--'
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Chart on the Right */}
+          <div className="w-[70%] h-full flex flex-col">
+            <div className="flex justify-between items-center p-2 border-b border-[#27272f] bg-[#1a1a24]">
+              <span className="text-sm font-semibold text-slate-300">{selectedStock} - Daily Chart</span>
+            </div>
+            {/* Ensure TradingViewWidget receives the selected stock */}
+            <TradingViewWidget symbol={selectedStock} />
+          </div>
+        </div>
+        )}
+
+        <CardFooter className="border-t border-[#27272f] p-3 flex justify-between items-center bg-[#1a1a24]">
+          <div className="text-xs text-slate-500 flex items-center gap-1">
+            <CalendarClock size={12} />
+             {/* Display last update time from socket status or a general time */}
+            Data updated: {isConnected ? 'Real-time' : new Date().toLocaleTimeString()}
+          </div>
+           {/* Footer View Toggle (for smaller screens perhaps) */}
+           <div className="md:hidden">
+               <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView(view === "table" ? "chart" : "table")}
+                className="gap-2 text-xs text-slate-400 hover:text-indigo-300 hover:bg-[#24243c] h-8"
+              >
+                {view === "table" ? <LineChart size={14} /> : <BarChart4 size={14} />}
+                 Switch View
+              </Button>
+           </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 };
-
 
 export default Watchlist;
