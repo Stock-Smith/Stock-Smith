@@ -1,6 +1,6 @@
 const KafkaConsumer = require("../services/KafkaConsumer");
 const config = require("../config/env");
-const UserSubscription = require("../models/User");
+const UserSubscription = require("../models/UserSubscription");
 
 class PaymentVerificationController {
   constructor() {

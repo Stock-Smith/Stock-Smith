@@ -12,3 +12,5 @@ scikit-learn
 tqdm
 django-redis==5.4.0
 redis==5.0.7
+pymongo
+mongoengine==0.29.1
