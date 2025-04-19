@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from "react-router-dom";
 import { useAuthStore } from "./context/AuthContext";
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
+import Home from "./pages/home1";
 import Portfolio from "./pages/Portfolio";
 import Watchlist from "./pages/Watchlist";
 import News from "./pages/MarketNews";

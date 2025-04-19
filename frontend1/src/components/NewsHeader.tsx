@@ -1,7 +1,6 @@
 import React from 'react';
-import { LayoutGrid, LayoutList } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { ViewMode } from '../lib/news';
+import { LayoutGrid, List, Filter, X } from 'lucide-react';
 
 interface NewsHeaderProps {
   viewMode: ViewMode;
@@ -10,47 +9,51 @@ interface NewsHeaderProps {
   filterVisible: boolean;
 }
 
-const NewsHeader: React.FC<NewsHeaderProps> = ({ 
+const NewsHeader = ({ 
   viewMode, 
-  onViewModeChange,
+  onViewModeChange, 
   onFilterToggle,
   filterVisible
-}) => {
+}: NewsHeaderProps) => {
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Financial News</h1>
-        <p className="text-muted-foreground mt-1">Stay updated with the latest market trends</p>
-      </div>
-      
-      <div className="flex items-center gap-2">
-        <Button 
-          variant={filterVisible ? "default" : "outline"} 
-          onClick={onFilterToggle}
-          className="transition-all duration-300"
-        >
-          {filterVisible ? "Hide Filters" : "Show Filters"}
-        </Button>
-        
-        <div className="bg-secondary rounded-md p-1 flex">
-          <Button
-            variant={viewMode === 'grid' ? "secondary" : "ghost"}
-            size="icon"
-            onClick={() => onViewModeChange('grid')}
-            className="rounded-sm"
-          >
-            <LayoutGrid size={18} />
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? "secondary" : "ghost"}
-            size="icon"
-            onClick={() => onViewModeChange('list')}
-            className="rounded-sm"
-          >
-            <LayoutList size={18} />
-          </Button>
+    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+      <div className="bg-gray-900 rounded-xl p-2 flex items-center space-x-1 border border-gray-800 shadow-md">
+        <div className={`p-2 rounded-md cursor-pointer transition-all duration-200 ${
+          viewMode === 'grid' 
+            ? 'text-blue-400 bg-blue-900/30 shadow-inner' 
+            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+        }`} onClick={() => onViewModeChange('grid')}>
+          <LayoutGrid className="h-5 w-5" />
+        </div>
+        <div className={`p-2 rounded-md cursor-pointer transition-all duration-200 ${
+          viewMode === 'list' 
+            ? 'text-blue-400 bg-blue-900/30 shadow-inner' 
+            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+        }`} onClick={() => onViewModeChange('list')}>
+          <List className="h-5 w-5" />
         </div>
       </div>
+      
+      <button 
+        onClick={onFilterToggle}
+        className={`bg-gray-900 rounded-xl py-2 px-4 flex items-center gap-2 border border-gray-800 transition-all duration-200 hover:shadow-md ${
+          filterVisible 
+            ? 'text-red-400 hover:bg-red-900/20 hover:border-red-900/50' 
+            : 'text-blue-400 hover:bg-blue-900/20 hover:border-blue-900/50'
+        }`}
+      >
+        {filterVisible ? (
+          <>
+            <X className="h-5 w-5" />
+            <span className="font-medium">Close Filters</span>
+          </>
+        ) : (
+          <>
+            <Filter className="h-5 w-5" />
+            <span className="font-medium">Filter News</span>
+          </>
+        )}
+      </button>
     </div>
   );
 };

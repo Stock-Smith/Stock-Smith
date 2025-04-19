@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Shield } from "lucide-react";
+import { AlertCircle, Shield, Newspaper } from "lucide-react";
 
 const API_BASE_URL = "http://localhost";
 
@@ -119,90 +119,104 @@ const News = () => {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-6">Market News</h1>
+    <div className="container mx-auto py-8 bg-gray-950 text-zinc-200 min-h-screen mt-20">
+      <div className="flex items-center gap-3 mb-8">
+        <Newspaper className="h-8 w-8 text-purple-500" />
+        <h1 className="text-3xl font-bold text-white">Market News</h1>
+      </div>
       
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Search News</CardTitle>
-          <CardDescription>
+      <Card className="mb-8 bg-zinc-900 border-zinc-800 shadow-xl">
+        <CardHeader className="border-b border-zinc-800">
+          <CardTitle className="text-white">Search News</CardTitle>
+          <CardDescription className="text-zinc-400">
             Filter market news by ticker symbols, topics, and date range
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="tickers">Ticker Symbols (comma separated)</Label>
+                <Label htmlFor="tickers" className="text-zinc-300">Ticker Symbols (comma separated)</Label>
                 <Input
                   id="tickers"
                   placeholder="AAPL,MSFT,TSLA"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("tickers")}
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="topics">Topics</Label>
+                <Label htmlFor="topics" className="text-zinc-300">Topics</Label>
                 <Input
                   id="topics"
                   placeholder="general"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("topics")}
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="time_from">From (YYYYMMDDTHHMM)</Label>
+                <Label htmlFor="time_from" className="text-zinc-300">From (YYYYMMDDTHHMM)</Label>
                 <Input
                   id="time_from"
                   placeholder="20230101T0000"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("time_from")}
                 />
                 {errors.time_from && (
-                  <p className="text-sm text-red-500">{errors.time_from.message}</p>
+                  <p className="text-sm text-red-400">{errors.time_from.message}</p>
                 )}
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="time_to">To (YYYYMMDDTHHMM)</Label>
+                <Label htmlFor="time_to" className="text-zinc-300">To (YYYYMMDDTHHMM)</Label>
                 <Input
                   id="time_to"
                   placeholder="20230101T2359"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("time_to")}
                 />
                 {errors.time_to && (
-                  <p className="text-sm text-red-500">{errors.time_to.message}</p>
+                  <p className="text-sm text-red-400">{errors.time_to.message}</p>
                 )}
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="sort">Sort By</Label>
+                <Label htmlFor="sort" className="text-zinc-300">Sort By</Label>
                 <Input
                   id="sort"
                   placeholder="latest"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("sort")}
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="limit">Limit</Label>
+                <Label htmlFor="limit" className="text-zinc-300">Limit</Label>
                 <Input
                   id="limit"
                   type="number"
                   placeholder="10"
+                  className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-purple-500 focus:ring-purple-500"
                   {...register("limit")}
                 />
               </div>
             </div>
             
-            <div className="flex justify-end space-x-2">
+            <div className="flex justify-end space-x-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => reset()}
+                className="border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
               >
                 Reset
               </Button>
-              <Button type="submit" disabled={loading}>
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
                 {loading ? "Loading..." : "Search News"}
               </Button>
             </div>
@@ -211,7 +225,7 @@ const News = () => {
       </Card>
 
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mb-4 bg-red-900 border-red-800 text-red-200">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -219,43 +233,47 @@ const News = () => {
 
       {loading ? (
         <div className="flex justify-center my-12">
-          <p>Loading news...</p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-zinc-400">Loading news...</p>
+          </div>
         </div>
       ) : news.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {news.map((item) => (
-            <Card key={item.id} className="h-full flex flex-col">
-              <CardHeader>
-                <CardTitle className="line-clamp-2">{item.headline}</CardTitle>
-                <CardDescription>
-                  {item.source} • {formatDateForDisplay(item.datetime)}
+            <Card key={item.id} className="h-full flex flex-col bg-zinc-900 border-zinc-800 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+              <CardHeader className="border-b border-zinc-800 pb-3">
+                <CardTitle className="line-clamp-2 text-white text-lg">{item.headline}</CardTitle>
+                <CardDescription className="text-zinc-400 flex items-center justify-between mt-2">
+                  <span className="font-medium">{item.source}</span>
+                  <span className="text-purple-400 text-xs bg-zinc-800 px-2 py-1 rounded-full">{formatDateForDisplay(item.datetime)}</span>
                 </CardDescription>
               </CardHeader>
               {item.image && (
-                <div className="px-6">
+                <div className="px-6 pt-4">
                   <img 
                     src={item.image} 
                     alt={item.headline} 
-                    className="w-full h-40 object-cover rounded-md"
+                    className="w-full h-48 object-cover rounded-md shadow-md ring-1 ring-zinc-800"
                     onError={(e) => {
                       (e.target as HTMLImageElement).style.display = 'none';
                     }}
                   />
                 </div>
               )}
-              <CardContent className="flex-grow">
-                <p className="line-clamp-3 text-sm">{item.summary}</p>
+              <CardContent className="flex-grow pt-4">
+                <p className="line-clamp-3 text-sm text-zinc-300">{item.summary}</p>
                 {item.related && (
-                  <div className="mt-2">
-                    <span className="text-xs font-semibold">Related: </span>
-                    <span className="text-xs">{item.related}</span>
+                  <div className="mt-3 p-2 bg-zinc-800 rounded-md">
+                    <span className="text-xs font-semibold text-purple-400">Related: </span>
+                    <span className="text-xs text-zinc-400">{item.related}</span>
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="border-t pt-4">
+              <CardFooter className="border-t border-zinc-800 pt-4">
                 <Button 
                   variant="outline" 
-                  className="w-full"
+                  className="w-full border-zinc-700 text-purple-400 hover:bg-zinc-800 hover:text-purple-300 transition-colors"
                   onClick={() => window.open(item.url, '_blank', 'noopener,noreferrer')}
                 >
                   Read Full Article
@@ -265,10 +283,10 @@ const News = () => {
           ))}
         </div>
       ) : (
-        <div className="text-center py-12">
-          <Shield className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium">No news found</h3>
-          <p className="text-gray-500">
+        <div className="text-center py-12 bg-zinc-900 rounded-lg border border-zinc-800 shadow-xl">
+          <Shield className="h-16 w-16 mx-auto mb-4 text-zinc-700" />
+          <h3 className="text-xl font-medium text-white">No news found</h3>
+          <p className="text-zinc-400 mt-2">
             Try adjusting your search filters or check back later
           </p>
         </div>

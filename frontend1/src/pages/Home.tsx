@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useAuthStore } from "../context/AuthContext";
+import Papa from "papaparse";
 import { 
   LineChart,
   Line,
@@ -8,8 +9,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  Area
+  ResponsiveContainer
 } from 'recharts';
 import { 
   Table, 
@@ -31,19 +31,50 @@ import {
   SearchIcon,
   LogInIcon,
   UserPlusIcon,
-  ExternalLinkIcon
+  ExternalLinkIcon,
+  LoaderIcon,
+  XIcon
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
 
-const marketData = [
+// CSV Configuration
+const CSV_URL = "merged_symbols.csv";
+type CsvStock = {
+  Symbol: string;
+  "Security Name": string;
+};
+
+
+// Mock Data Interfaces
+interface MarketData {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  percentChange: number;
+  status: "up" | "down";
+  volume: string;
+}
+
+interface ActiveStock {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  value: number;
+  status: "up" | "down";
+}
+
+// Mock Data
+const mockMarketData: MarketData[] = [
   { symbol: "AAPL", name: "Apple Inc.", price: 189.45, change: 2.37, percentChange: 1.27, status: "up", volume: "32.4M" },
   { symbol: "GOOGL", name: "Alphabet Inc.", price: 128.63, change: -1.95, percentChange: -1.49, status: "down", volume: "18.7M" },
   { symbol: "MSFT", name: "Microsoft Corporation", price: 332.87, change: 1.22, percentChange: 0.37, status: "up", volume: "24.2M" },
   { symbol: "AMZN", name: "Amazon.com Inc.", price: 176.29, change: 0.56, percentChange: 0.32, status: "up", volume: "21.1M" }
 ];
-
+// Add this right after the mockMarketData declaration
 const topPerformers = [
   { name: "Technology", change: 2.4 },
   { name: "Healthcare", change: 1.8 },
@@ -68,38 +99,21 @@ const chartData = [
 ];
 
 const usMarketData = {
-  dow: {
-    value: 38623.74,
-    change: -314.33,
-    percentChange: -0.81
-  },
-  advanceDecline: {
-    advance: 153,
-    decline: 347
-  },
+  dow: { value: 38623.74, change: -314.33, percentChange: -0.81 },
+  advanceDecline: { advance: 153, decline: 347 },
   institutionalActivity: [
     { date: "2025-03-08", netBuying: 11246.82, netSelling: -9308.63 },
     { date: "2025-03-07", netBuying: 8726.54, netSelling: -7427.11 }
-  ],
-  activeStocks: [
-    { symbol: "TSLA", company: "Tesla, Inc.", price: 178.21, change: -6.40, value: 12.5, status: "down" },
-    { symbol: "NVDA", company: "NVIDIA Corp", price: 824.12, change: 15.73, value: 8.4, status: "up" },
-    { symbol: "AMD", company: "Advanced Micro Devices", price: 172.88, change: 8.25, value: 6.7, status: "up" },
-    { symbol: "META", company: "Meta Platforms Inc", price: 474.32, change: -11.25, value: 5.9, status: "down" }
   ]
 };
 
+// Animation Configurations
 const scrollVariants = {
   hidden: { opacity: 0, y: 50 },
   visible: { 
     opacity: 1, 
     y: 0,
-    transition: {
-      type: "spring",
-      stiffness: 100,
-      damping: 20,
-      duration: 0.5
-    }
+    transition: { type: "spring", stiffness: 100, damping: 20, duration: 0.5 }
   }
 };
 
@@ -108,56 +122,178 @@ const tableRowVariants = {
   visible: (i: number) => ({
     opacity: 1,
     x: 0,
-    transition: {
-      delay: i * 0.05,
-      duration: 0.3
-    }
+    transition: { delay: i * 0.05, duration: 0.3 }
   })
 };
 
+const MAX_SUGGESTIONS = 10;
+
+const SkeletonRow = () => (
+  <TableRow>
+    <TableCell><div className="h-4 bg-gray-700 rounded w-12 animate-pulse" /></TableCell>
+    <TableCell><div className="h-4 bg-gray-700 rounded w-32 animate-pulse" /></TableCell>
+    <TableCell><div className="h-4 bg-gray-700 rounded w-16 animate-pulse ml-auto" /></TableCell>
+    <TableCell><div className="h-4 bg-gray-700 rounded w-16 animate-pulse" /></TableCell>
+  </TableRow>
+);
+
 const Home = () => {
-  const { isAuthenticated, user } = useAuthStore();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filteredData, setFilteredData] = useState(marketData);
-  const [timeframe, setTimeframe] = useState("1D");
-  const [marketView, setMarketView] = useState("dow");
-  const [institutionalView, setInstitutionalView] = useState("buying");
+  // State Management
   const [isLoading, setIsLoading] = useState(true);
-  const shouldReduceMotion = useReducedMotion();
-  
-  const heroRef = useRef(null);
+  const [csvData, setCsvData] = useState<CsvStock[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredData, setFilteredData] = useState<MarketData[]>([]);
+  const [timeframe, setTimeframe] = useState('1D');
+  const [activeStockSearchTerm, setActiveStockSearchTerm] = useState('');
+  const [activeStockSuggestions, setActiveStockSuggestions] = useState<CsvStock[]>([]);
+  const [showActiveSuggestions, setShowActiveSuggestions] = useState(false);
+  const [filteredActiveStocks, setFilteredActiveStocks] = useState<ActiveStock[]>([]);
+  const [stockHighlightIndex, setStockHighlightIndex] = useState<number | null>(null);
+  const [selectedStock, setSelectedStock] = useState<MarketData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Refs and Animations
+  const heroRef = useRef<HTMLDivElement>(null);
+  const activeSuggestionsRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
-  const heroScale = useTransform(scrollYProgress, [0, 0.2], [1, 0.95]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.1], [1, 0]);
+  const shouldReduceMotion = useReducedMotion();
+  const heroScale = useTransform(scrollYProgress, [0, 1], [1, 0.95]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.8]);
+  const { isAuthenticated, user } = useAuthStore();
 
-  useEffect(() => {
-    const loadData = async () => {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+  // CSV Data Loading
+// Update the CSV parsing useEffect
+useEffect(() => {
+  fetch(CSV_URL)
+    .then(response => response.text())
+    .then(data => {
+      console.log("Raw CSV data:", data);
+      
+      const results = Papa.parse<CsvStock>(data, {
+        header: true,
+        skipEmptyLines: true
+      });
+      
+      console.log("Parsed results:", results);
+      
+      if (results.errors.length > 0) {
+        setError("CSV parsing errors: " + results.errors.map(e => e.message).join(', '));
+        return;
+      }
+      
+      setCsvData(results.data);
       setIsLoading(false);
-    };
-    loadData();
-  }, []);
+    })
+    .catch(err => {
+      setError("Failed to load stock symbols: " + err.message);
+      setIsLoading(false);
+    });
+}, []);
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setFilteredData(
-      term.trim() === "" 
-        ? marketData 
-        : marketData.filter(stock =>
-            stock.symbol.toLowerCase().includes(term.toLowerCase()) || 
-            stock.name.toLowerCase().includes(term.toLowerCase())
-          )
-    );
-  };
+  // Search Handlers
+  // Update the handleSearch function with null checks
+const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const term = e.target.value.trim().toLowerCase();
+  setSearchTerm(term);
+  
+  if (!term) {
+    setFilteredData([]);
+    return;
+  }
 
-  const SkeletonRow = () => (
-    <div className="animate-pulse flex items-center justify-between p-4">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="h-4 bg-gray-700 rounded" style={{ width: `${25 - i*5}%` }} />
-      ))}
+  const results = csvData
+    .filter(stock => {
+      // Add null-safe checks
+      const symbol = stock?.Symbol?.toLowerCase() || '';
+      const securityName = stock?.['Security Name']?.toLowerCase() || '';
+      return symbol.includes(term) || securityName.includes(term);
+    })
+    .map(csvStock => {
+      const mock = mockMarketData.find(m => m.symbol === csvStock.Symbol);
+      return mock || {
+        symbol: csvStock.Symbol || 'N/A',
+        name: csvStock['Security Name'] || 'Unknown Company',
+      };
+    });
+
+  setFilteredData(results as MarketData[]);
+};
+
+const ErrorDisplay = ({ error }: { error: string | null }) => {
+  if (!error) return null;
+  
+  return (
+    <div className="mb-4 p-4 bg-red-900/30 rounded-lg border border-red-700/40 flex items-center">
+      <AlertCircleIcon className="w-5 h-5 mr-2 text-red-400" />
+      <span className="text-red-300">{error}</span>
     </div>
   );
+};
+
+const handleActiveStockSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const term = e.target.value;
+  setActiveStockSearchTerm(term);
+  
+  const suggestions = csvData
+    .filter(stock => {
+      const symbol = stock?.Symbol?.toLowerCase() || '';
+      const securityName = stock?.['Security Name']?.toLowerCase() || '';
+      return (
+        symbol.startsWith(term.toLowerCase()) ||
+        securityName.includes(term.toLowerCase())
+      );
+    })
+    .slice(0, MAX_SUGGESTIONS);
+  
+  setActiveStockSuggestions(suggestions);
+  setShowActiveSuggestions(term.length > 0);
+};
+
+  // Stock Selection Handlers
+  const handleSuggestionClick = (suggestion: CsvStock) => {
+    setActiveStockSearchTerm('');
+    setShowActiveSuggestions(false);
+
+    const mockData = mockMarketData.find(m => m.symbol === suggestion.Symbol);
+    const newStock: ActiveStock = {
+      symbol: suggestion.Symbol,
+      name: suggestion['Security Name'],
+      price: mockData?.price || 0,
+      change: mockData?.change || 0,
+      value: (mockData?.price || 0) * 1000,
+      status: mockData?.status || 'up'
+    };
+
+    setFilteredActiveStocks(prev => [...prev, newStock]);
+    setSelectedStock(mockData || {
+      symbol: suggestion.Symbol,
+      name: suggestion['Security Name'],
+      price: 0,
+      change: 0,
+      percentChange: 0,
+      status: 'up',
+      volume: 'N/A'
+    });
+  };
+
+  const handleStockClick = (symbol: string) => {
+    const stock = mockMarketData.find(m => m.symbol === symbol) || 
+      filteredData.find(f => f.symbol === symbol);
+    if (stock) setSelectedStock(stock);
+  };
+
+  // UI Helpers
+  const highlightStock = (index: number) => {
+    setStockHighlightIndex(index);
+    setTimeout(() => setStockHighlightIndex(null), 1500);
+  };
+
+  const clearSearch = () => {
+    setActiveStockSearchTerm('');
+    setActiveStockSuggestions([]);
+    setShowActiveSuggestions(false);
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-gray-100 p-6">
@@ -217,7 +353,12 @@ const Home = () => {
         )}
       </motion.div>
 
-      {/* Market Dashboard */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-900/30 rounded-lg border border-red-700/40 flex items-center">
+          <AlertCircleIcon className="w-5 h-5 mr-2 text-red-400" />
+          <span className="text-red-300">{error}</span>
+        </div>
+      )}
       <motion.div
         initial="hidden"
         whileInView="visible"
@@ -238,6 +379,7 @@ const Home = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Active Stocks Panel */}
               <motion.div
                 initial="hidden"
                 whileInView="visible"
@@ -253,12 +395,53 @@ const Home = () => {
                       </Link>
                     </Badge>
                   </div>
-                  {isLoading ? (
-                    <div className="space-y-4">
-                      <SkeletonRow />
-                      <SkeletonRow />
-                      <SkeletonRow />
+
+
+                  {/* Search input for active stocks with suggestions */}
+                  <div className="relative mb-4">
+                    <div className="flex items-center relative">
+                      <SearchIcon className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                      <Input 
+                        ref={searchInputRef}
+                        type="text" 
+                        placeholder="Search active stocks..." 
+                        value={activeStockSearchTerm}
+                        onChange={handleActiveStockSearch}
+                        className="pl-8 py-1 h-9 text-sm bg-gray-900/30 border-gray-700 text-white placeholder:text-gray-500 focus:ring-blue-500 focus:border-blue-500 pr-8"
+                      />
+                      {activeStockSearchTerm && (
+                        <button onClick={clearSearch} className="absolute right-2 top-2 text-gray-400 hover:text-gray-300">
+                          <XIcon className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
+                    {showActiveSuggestions && activeStockSuggestions.length > 0 && (
+                      <div 
+                        ref={activeSuggestionsRef}
+                        className="absolute z-10 mt-1 w-full bg-gray-800 rounded-md shadow-lg border border-gray-700 max-h-60 overflow-auto"
+                      >
+                        {activeStockSuggestions.map((suggestion) => (
+                          <div
+                            key={suggestion.Symbol}
+                            className="flex items-center px-4 py-2 cursor-pointer hover:bg-gray-700 text-sm"
+                            onClick={() => handleSuggestionClick(suggestion)}
+                          >
+                            <span className="font-medium text-blue-400 mr-2">{suggestion.Symbol}</span>
+                            <span className="text-gray-300 truncate">{suggestion['Security Name']}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {isLoading ? (
+                     <table className="w-full">
+                     <tbody>
+                       <SkeletonRow />
+                       <SkeletonRow />
+                       <SkeletonRow />
+                     </tbody>
+                   </table>
                   ) : (
                     <div className="overflow-x-auto">
                       <table className="w-full">
@@ -271,182 +454,120 @@ const Home = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {usMarketData.activeStocks.map((stock, index) => (
-                            <tr 
-                              key={index} 
-                              className="border-b border-white/10 hover:bg-gray-800/30 cursor-pointer transition-colors group"
-                            >
-                              <td className="py-2 text-sm font-bold text-blue-400 group-hover:text-blue-300 transition-colors">
-                                {stock.symbol}
-                              </td>
-                              <td className="py-2 text-sm font-medium text-white">{stock.company}</td>
-                              <td className="py-2 text-right text-sm font-medium text-white">
-                                ${stock.price.toFixed(2)}
-                              </td>
-                              <td className={`py-2 text-right text-sm font-medium ${
-                                stock.status === 'up' ? 'text-green-400' : 'text-red-400'
-                              }`}>
-                                {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
+                          {filteredActiveStocks.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="text-center py-6">
+                                <p className="text-gray-400">No active stocks selected</p>
                               </td>
                             </tr>
-                          ))}
+                          ) : (
+                            filteredActiveStocks.map((stock, index) => (
+                              <motion.tr 
+                                key={stock.symbol}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: index * 0.05 }}
+                                className={`border-b border-white/10 hover:bg-gray-800/30 cursor-pointer transition-colors group ${
+                                  stockHighlightIndex === index ? 'bg-blue-900/30' : ''
+                                }`}
+                                onClick={() => {
+                                  handleStockClick(stock.symbol);
+                                  highlightStock(index);
+                                }}
+                              >
+                                <td className="py-2 text-sm font-bold text-blue-400 group-hover:text-blue-300 transition-colors">
+                                  {stock.symbol}
+                                </td>
+                                <td className="py-2 text-sm font-medium text-white">{stock.name}</td>
+                                <td className="py-2 text-right text-sm font-medium text-white">
+                                  ${stock.price.toFixed(2)}
+                                </td>
+                                <td className={`py-2 text-right text-sm font-medium ${
+                                  stock.status === 'up' ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                  {stock.change > 0 ? '+' : ''}{stock.change.toFixed(2)}
+                                </td>
+                              </motion.tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
                   )}
                 </div>
               </motion.div>
-
               <motion.div
                 initial="hidden"
                 whileInView="visible"
                 viewport={{ margin: "0px 0px -50px 0px" }}
                 variants={shouldReduceMotion ? undefined : scrollVariants}
+                className="col-span-2"
               >
-                <div className="bg-gray-900/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                  <div className="mb-3">
-                    <Tabs defaultValue="dow" onValueChange={setMarketView} className="w-full">
-                      <TabsList className="grid grid-cols-2 mb-2 bg-gray-800/50">
-                        <TabsTrigger value="dow" className="text-gray-300 data-[state=active]:bg-blue-900/40 data-[state=active]:text-blue-200">
-                          Dow Jones
-                        </TabsTrigger>
-                        <TabsTrigger value="snp" className="text-gray-300 data-[state=active]:bg-blue-900/40 data-[state=active]:text-blue-200">
-                          S&P 500
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {["1D", "5D", "1M", "3M", "6M", "1Y", "2Y"].map((period) => (
-                        <Button 
-                          key={period} 
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setTimeframe(period)}
-                          className={`px-3 py-1 text-xs ${
-                            timeframe === period 
-                              ? 'bg-blue-900/40 text-blue-200 border-blue-600' 
-                              : 'bg-gray-800/50 text-gray-300 border-gray-700 hover:bg-gray-700 hover:text-gray-200'
+                <div className="bg-gray-900/20 backdrop-blur-md rounded-xl p-4 border border-white/10 h-full">
+                  <div className="flex justify-between mb-3">
+                    <h3 className="text-lg font-medium text-blue-300">Market Overview</h3>
+                    <div className="flex space-x-2">
+                      {["1D", "1W", "1M", "3M", "1Y"].map((tf) => (
+                        <Badge 
+                          key={tf}
+                          variant={timeframe === tf ? "default" : "outline"}
+                          className={`cursor-pointer ${
+                            timeframe === tf 
+                              ? "bg-blue-600 hover:bg-blue-700" 
+                              : "bg-gray-800/30 hover:bg-gray-700/50 text-gray-300"
                           }`}
+                          onClick={() => setTimeframe(tf)}
                         >
-                          {period}
-                        </Button>
+                          {tf}
+                        </Badge>
                       ))}
                     </div>
                   </div>
-                  <div className="mt-4 h-48 w-full bg-gray-900/30 rounded-xl relative overflow-hidden border border-white/10">
+                  <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={chartData}>
-                        <defs>
-                          <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.1} />
-                        <XAxis dataKey="time" tick={{ fill: '#6b7280' }} />
-                        <YAxis tick={{ fill: '#6b7280' }} />
+                      <LineChart data={chartData} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                        <XAxis dataKey="time" stroke="#94a3b8" />
+                        <YAxis stroke="#94a3b8" />
                         <Tooltip 
                           contentStyle={{ 
-                            backgroundColor: '#1f2937',
-                            border: '1px solid #374151',
-                            borderRadius: '8px'
-                          }}
+                            backgroundColor: "rgba(17, 24, 39, 0.8)", 
+                            borderColor: "rgba(59, 130, 246, 0.5)",
+                            color: "#fff"
+                          }} 
                         />
-                        <Area 
+                        <Line 
                           type="monotone" 
                           dataKey="value" 
                           stroke="#3b82f6" 
                           strokeWidth={2}
-                          fill="url(#chartGradient)"
+                          dot={false}
+                          activeDot={{ r: 6, fill: "#3b82f6", stroke: "#fff" }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ margin: "0px 0px -50px 0px" }}
-                variants={shouldReduceMotion ? undefined : scrollVariants}
-                className="space-y-4"
-              >
-                <div className="bg-gray-900/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-medium text-blue-300">Advance / Decline (NYSE)</h3>
-                    <Link to="#" className="text-blue-400 hover:text-blue-300 text-xs flex items-center">
-                      View More <ExternalLinkIcon className="w-3 h-3 ml-1" />
-                    </Link>
-                  </div>
-                  <div className="relative h-8 bg-gray-800/50 rounded-full overflow-hidden border border-white/10">
-                    <div 
-                      className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-green-600 to-green-500" 
-                      style={{ width: `${(usMarketData.advanceDecline.advance / (usMarketData.advanceDecline.advance + usMarketData.advanceDecline.decline)) * 100}%` }}
-                    />
-                    <div 
-                      className="absolute right-0 top-0 bottom-0 bg-gradient-to-l from-red-600 to-red-500" 
-                      style={{ width: `${(usMarketData.advanceDecline.decline / (usMarketData.advanceDecline.advance + usMarketData.advanceDecline.decline)) * 100}%` }}
-                    />
-                    <div className="absolute inset-0 flex justify-between items-center px-6 text-sm font-medium">
-                      <span className="text-white z-10 drop-shadow-md">{usMarketData.advanceDecline.advance}</span>
-                      <span className="text-white z-10 drop-shadow-md">{usMarketData.advanceDecline.decline}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-900/20 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                  <div className="mb-2">
-                    <h3 className="text-lg font-medium text-blue-300 mb-3">Institutional Activity ($ Mil)</h3>
-                    <Tabs defaultValue="buying" onValueChange={setInstitutionalView} className="w-full">
-                      <TabsList className="grid grid-cols-2 mb-2 bg-gray-800/50">
-                        <TabsTrigger value="buying" className="text-gray-300 data-[state=active]:bg-blue-900/40 data-[state=active]:text-blue-200">
-                          Net Buying
-                        </TabsTrigger>
-                        <TabsTrigger value="selling" className="text-gray-300 data-[state=active]:bg-blue-900/40 data-[state=active]:text-blue-200">
-                          Net Selling
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
-                  {isLoading ? (
-                    <div className="space-y-4">
-                      <SkeletonRow />
-                      <SkeletonRow />
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="text-sm border-b border-white/10">
-                            <th className="text-left py-2 font-semibold text-white">Date</th>
-                            <th className="text-right py-2 font-semibold text-white">Net Buying</th>
-                            <th className="text-right py-2 font-semibold text-white">Net Selling</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {usMarketData.institutionalActivity.map((item, index) => {
-                            const dateParts = item.date.split('-');
-                            const formattedDate = `${dateParts[1]}/${dateParts[2]}/${dateParts[0].slice(2)}`;
-                            
-                            return (
-                              <tr 
-                                key={index} 
-                                className="border-b border-white/10 hover:bg-gray-800/30 transition-colors"
-                              >
-                                <td className="py-2 text-sm font-medium text-white">{formattedDate}</td>
-                                <td className="py-2 text-right text-sm font-medium text-green-400">
-                                  +${(item.netBuying/1000).toFixed(2)}B
-                                </td>
-                                <td className="py-2 text-right text-sm font-medium text-red-400">
-                                  ${(item.netSelling/1000).toFixed(2)}B
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
+                  
+                  {selectedStock && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 p-3 bg-blue-900/20 border border-blue-700/40 rounded-lg"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h4 className="text-lg font-bold text-blue-300">{selectedStock.symbol}</h4>
+                          <p className="text-sm text-gray-300">{selectedStock.name}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold">${selectedStock.price.toFixed(2)}</p>
+                          <p className={`text-sm ${selectedStock.status === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                            {selectedStock.change > 0 ? '+' : ''}{selectedStock.change.toFixed(2)}
+                            {selectedStock.percentChange !== 0 && ` (${selectedStock.percentChange.toFixed(2)}%)`}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
                   )}
                 </div>
               </motion.div>
@@ -454,182 +575,193 @@ const Home = () => {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Market Movers Grid */}
+      {/* Search Section */}
       <motion.div
         initial="hidden"
         whileInView="visible"
         viewport={{ margin: "0px 0px -100px 0px", once: false }}
         variants={shouldReduceMotion ? undefined : scrollVariants}
       >
-        <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gray-800/30 backdrop-blur-lg border border-white/10 shadow-xl col-span-3 md:col-span-2">
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-semibold flex items-center">
-                  <TrendingUpIcon className="w-5 h-5 mr-2 text-blue-400" />
-                  Market Movers
-                </CardTitle>
-                <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700">
-                  Live Data
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center mb-4 relative">
-                <SearchIcon className="w-4 h-4 absolute left-3 text-gray-400" />
-                <Input
-                  placeholder="Search stocks..."
-                  value={searchTerm}
-                  onChange={handleSearch}
-                  className="pl-9 bg-gray-900/50 border-white/10 focus:border-blue-500 text-gray-200"
-                />
-              </div>
-              {isLoading ? (
-                <div className="space-y-4">
-                  <SkeletonRow />
-                  <SkeletonRow />
-                  <SkeletonRow />
-                </div>
-              ) : (
-                <div className="rounded-xl overflow-hidden border border-white/10">
-                  <Table>
-                    <TableHeader className="bg-gray-800/50 backdrop-blur">
-                      <TableRow className="hover:bg-gray-800/30">
-                        <TableHead className="text-white font-semibold">Symbol</TableHead>
-                        <TableHead className="text-white font-semibold">Name</TableHead>
-                        <TableHead className="text-white font-semibold text-right">Price</TableHead>
-                        <TableHead className="text-white font-semibold text-right">Change</TableHead>
-                        <TableHead className="text-white font-semibold text-right">Volume</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredData.map((stock, index) => (
+        <Card className="bg-gray-800/30 backdrop-blur-lg border border-white/10 shadow-2xl mb-8">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold flex items-center">
+              <SearchIcon className="w-5 h-5 mr-2 text-blue-400" />
+              Search Stocks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="relative mb-6">
+              <SearchIcon className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
+              <Input 
+                type="text" 
+                placeholder="Search by symbol or company name..." 
+                value={searchTerm}
+                onChange={handleSearch}
+                className="pl-10 bg-gray-900/20 border-gray-700 text-white placeholder:text-gray-500 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-gray-700">
+                    <TableHead className="text-gray-300">Symbol</TableHead>
+                    <TableHead className="text-gray-300">Name</TableHead>
+                    <TableHead className="text-right text-gray-300">Price</TableHead>
+                    <TableHead className="text-right text-gray-300">Change</TableHead>
+                    <TableHead className="text-right text-gray-300">% Change</TableHead>
+                    <TableHead className="text-right text-gray-300">Volume</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <>
+                      <SkeletonRow />
+                      <SkeletonRow />
+                      <SkeletonRow />
+                    </>
+                  ) : filteredData.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-6">
+                        <p className="text-gray-400">No matching stocks found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredData.map((stock, i) => {
+                      const mockStock = mockMarketData.find(m => m.symbol === stock.symbol);
+                      return (
                         <motion.tr
                           key={stock.symbol}
-                          custom={index}
+                          custom={i}
+                          variants={tableRowVariants}
                           initial="hidden"
                           animate="visible"
-                          variants={shouldReduceMotion ? undefined : tableRowVariants}
-                          className="group hover:bg-gray-800/30 transition-colors duration-200 even:bg-gray-800/20"
+                          className="border-b border-gray-700 hover:bg-gray-800/30 cursor-pointer transition-colors"
+                          onClick={() => handleStockClick(stock.symbol)}
                         >
-                          <TableCell className="font-bold text-blue-400 group-hover:text-blue-300 transition-colors">
-                            {stock.symbol}
+                          <TableCell className="font-medium text-blue-400">{stock.symbol}</TableCell>
+                          <TableCell>{stock.name}</TableCell>
+                          <TableCell className="text-right">${mockStock?.price.toFixed(2) || 'N/A'}</TableCell>
+                          <TableCell className={`text-right ${mockStock?.status === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                            {mockStock ? `${mockStock.change > 0 ? '+' : ''}${mockStock.change.toFixed(2)}` : 'N/A'}
                           </TableCell>
-                          <TableCell className="text-white font-medium">{stock.name}</TableCell>
-                          <TableCell className="text-right font-medium text-white">
-                            ${stock.price.toFixed(2)}
+                          <TableCell className={`text-right ${mockStock?.status === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                            {mockStock ? `${mockStock.percentChange > 0 ? '+' : ''}${mockStock.percentChange.toFixed(2)}%` : 'N/A'}
                           </TableCell>
-                          <TableCell className="text-right">
-                            <div className={`flex items-center justify-end font-medium ${
-                              stock.status === 'up' ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {stock.status === 'up' ? (
-                                <ArrowUpIcon className="w-4 h-4 mr-1" />
-                              ) : (
-                                <ArrowDownIcon className="w-4 h-4 mr-1" />
-                              )}
-                              {stock.change.toFixed(2)} ({stock.percentChange.toFixed(2)}%)
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-blue-200 font-medium">
-                            {stock.volume}
-                          </TableCell>
+                          <TableCell className="text-right">{mockStock?.volume || 'N/A'}</TableCell>
                         </motion.tr>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Sector Performance */}
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ margin: "0px 0px -100px 0px", once: false }}
-            variants={shouldReduceMotion ? undefined : scrollVariants}
-          >
-            <Card className="bg-gray-800/30 backdrop-blur-lg border border-white/10 shadow-xl">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold flex items-center">
-                  <BarChart2Icon className="w-5 h-5 mr-2 text-blue-400" />
-                  Top Sectors Today
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="space-y-4">
-                    <SkeletonRow />
-                    <SkeletonRow />
-                    <SkeletonRow />
-                  </div>
-                ) : (
-                  <>
-                    {topPerformers.map((sector, i) => (
-                      <motion.div
-                        key={i}
-                        whileHover={shouldReduceMotion ? undefined : { scale: 1.02 }}
-                        whileTap={shouldReduceMotion ? undefined : { scale: 0.98 }}
-                      >
-                        <div className="flex justify-between items-center p-3 mb-2 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition cursor-pointer group">
-                          <span className="font-medium text-white">{sector.name}</span>
-                          <span className="text-green-400 font-medium flex items-center">
-                            <ArrowUpIcon className="w-4 h-4 mr-1 group-hover:animate-bounce" />
-                            {sector.change}%
-                          </span>
-                        </div>
-                      </motion.div>
-                    ))}
-                    <div className="mt-4 p-4 bg-blue-900/20 border border-blue-800/50 rounded-lg">
-                      <div className="flex items-start">
-                        <AlertCircleIcon className="w-5 h-5 text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-white">
-                          Markets are showing positive momentum across technology sectors as Q4 earnings exceed expectations.
-                        </p>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* CTA Banner */}
-      <motion.div
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ margin: "0px 0px -100px 0px", once: false }}
-        variants={shouldReduceMotion ? undefined : scrollVariants}
-        whileHover={shouldReduceMotion ? undefined : { scale: 1.01 }}
-        transition={{ type: "spring", stiffness: 300 }}
-      >
-        <Card className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 backdrop-blur-lg border border-white/10 shadow-2xl">
-          <CardContent className="p-8 flex flex-col md:flex-row justify-between items-center">
-            <div className="mb-4 md:mb-0">
-              <h3 className="text-2xl font-bold text-white mb-2">
-                Ready to start investing smarter?
-              </h3>
-              <p className="text-gray-200">
-                Join thousands of investors making data-driven decisions.
-              </p>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
             </div>
-            <Button 
-              size="lg" 
-              className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-medium px-6 py-6 rounded-xl shadow-lg hover:shadow-blue-500/20 transition-all duration-200 transform hover:-translate-y-1 hover:scale-105 flex items-center gap-2"
-              asChild
-            >
-              <Link to="/auth?type=signup">
-                <UserPlusIcon className="w-5 h-5" />
-                <span className="text-lg">Get Started Now</span>
-              </Link>
-            </Button>
           </CardContent>
         </Card>
       </motion.div>
+      {/* Market Trends Section */}
+      <motion.div
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ margin: "0px 0px -100px 0px", once: false }}
+        variants={shouldReduceMotion ? undefined : scrollVariants}
+      >
+        <Card className="bg-gray-800/30 backdrop-blur-lg border border-white/10 shadow-2xl">
+          <CardHeader>
+            <CardTitle className="text-xl font-semibold flex items-center">
+              <TrendingUpIcon className="w-5 h-5 mr-2 text-blue-400" />
+              Market Trends
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="sector">
+              <TabsList className="mb-6 bg-gray-900/30">
+                <TabsTrigger value="sector">Sector Performance</TabsTrigger>
+                <TabsTrigger value="institutional">Institutional Activity</TabsTrigger>
+                <TabsTrigger value="advance">Advance/Decline</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="sector">
+                <div className="space-y-4">
+                  {topPerformers.map((sector, index) => (
+                    <motion.div 
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-gray-900/20 p-4 rounded-lg border border-white/10 flex justify-between items-center"
+                    >
+                      <h3 className="text-lg font-medium">{sector.name}</h3>
+                      <div className="flex items-center text-green-400">
+                        <ArrowUpIcon className="w-4 h-4 mr-1" />
+                        <span>+{sector.change}%</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="institutional">
+                <div className="space-y-4">
+                  {usMarketData.institutionalActivity.map((day, index) => (
+                    <div key={index} className="bg-gray-900/20 p-4 rounded-lg border border-white/10">
+                      <h3 className="text-lg font-medium mb-3">{day.date}</h3>
+                      <div className="flex flex-wrap gap-4">
+                        <div className="bg-green-900/20 p-3 rounded border border-green-700/30 flex-1">
+                          <p className="text-sm text-gray-300 mb-1">Net Buying</p>
+                          <p className="text-green-400 text-lg font-semibold">
+                            ${day.netBuying.toLocaleString()}M
+                          </p>
+                        </div>
+                        <div className="bg-red-900/20 p-3 rounded border border-red-700/30 flex-1">
+                          <p className="text-sm text-gray-300 mb-1">Net Selling</p>
+                          <p className="text-red-400 text-lg font-semibold">
+                            ${Math.abs(day.netSelling).toLocaleString()}M
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="advance">
+                <div className="bg-gray-900/20 p-4 rounded-lg border border-white/10">
+                  <h3 className="text-lg font-medium mb-3">S&P 500 Components</h3>
+                  <div className="flex gap-4">
+                    <div className="bg-green-900/20 p-3 rounded border border-green-700/30 flex-1">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-gray-300">Advancing</p>
+                        <ArrowUpIcon className="w-4 h-4 text-green-400" />
+                      </div>
+                      <p className="text-green-400 text-2xl font-semibold">
+                        {usMarketData.advanceDecline.advance}
+                      </p>
+                    </div>
+                    <div className="bg-red-900/20 p-3 rounded border border-red-700/30 flex-1">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm text-gray-300">Declining</p>
+                        <ArrowDownIcon className="w-4 h-4 text-red-400" />
+                      </div>
+                      <p className="text-red-400 text-2xl font-semibold">
+                        {usMarketData.advanceDecline.decline}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </motion.div>
+      
+      {/* Footer Section */}
+      <footer className="mt-12 py-8 border-t border-white/10 text-center text-gray-400">
+        <p>© {new Date().getFullYear()} Stock-Smith. All rights reserved.</p>
+        <p className="mt-2 text-sm">
+          Market data is for informational purposes only. Not financial advice.
+        </p>
+      </footer>
     </div>
   );
 };
