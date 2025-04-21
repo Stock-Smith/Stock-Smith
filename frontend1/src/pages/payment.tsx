@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Particles } from "react-tsparticles";
 import { DollarSign, Sparkles, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useSearchParams, useNavigate } from 'react-router-dom';
 
 declare global {
   interface Window {
@@ -20,16 +21,43 @@ interface PaymentFormState {
   successMessage: string;
 }
 
+const API_BASE_URL = "http://localhost"; // Using localhost
+
 const PaymentForm: React.FC = () => {
+  const navigate = useNavigate();
+  // Get URL parameters
+  const [searchParams] = useSearchParams();
+  const planId = searchParams.get('planId');
+  const initialAmount = searchParams.get('amount') || '100';
+
   const [state, setState] = useState<PaymentFormState>({
     name: '',
     email: '',
     phone: '',
-    amount: '100',
+    amount: initialAmount,
     isLoading: false,
     errorMessage: '',
     successMessage: ''
   });
+
+  // Check auth status on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // Redirect to login page if no token exists
+      setState(prev => ({
+        ...prev,
+        errorMessage: 'Please log in to continue with payment'
+      }));
+      
+      // Optional: redirect after a short delay
+      const timer = setTimeout(() => {
+        navigate('/login');
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [navigate]);
 
   // Load Razorpay script safely
   useEffect(() => {
@@ -71,28 +99,41 @@ const PaymentForm: React.FC = () => {
   }, []);
 
   const initiatePayment = useCallback(async () => {
-    const { name, email, phone, amount } = state;
+    const { name, email, phone } = state;
     const abortController = new AbortController();
 
-    if (!name || !email || !phone || !amount) {
+    if (!name || !email || !phone) {
       showMessage('error', 'Please fill in all fields');
+      return;
+    }
+
+    // Get authentication token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showMessage('error', 'Authentication required. Please log in.');
+      navigate('/login');
       return;
     }
 
     setState(prev => ({ ...prev, isLoading: true }));
 
     try {
-      const orderResponse = await fetch('http://localhost/api/v1/subscription/create-order', {
+      const orderResponse = await fetch(`${API_BASE_URL}/api/v1/subscription/create-order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`  // Add token for authentication
+        },
         body: JSON.stringify({
-          amount: parseFloat(amount),
-          notes: { customerName: name, customerEmail: email, customerPhone: phone }
+          subscriptionId: planId  // Use subscriptionId as the backend expects
         }),
         signal: abortController.signal
       });
 
-      if (!orderResponse.ok) throw new Error('Failed to create order');
+      if (!orderResponse.ok) {
+        const errorData = await orderResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to create order: ${orderResponse.status}`);
+      }
 
       const orderData = await orderResponse.json();
 
@@ -101,7 +142,7 @@ const PaymentForm: React.FC = () => {
         amount: orderData.order.amount,
         currency: orderData.order.currency,
         name: "Your Company Name",
-        description: "Payment for Product/Service",
+        description: "Payment for Premium Subscription",
         order_id: orderData.order.id,
         handler: async (response: any) => {
           await verifyPayment(response);
@@ -127,25 +168,41 @@ const PaymentForm: React.FC = () => {
     }
 
     return () => abortController.abort();
-  }, [state, showMessage]);
+  }, [state, showMessage, planId, navigate]);
 
   const verifyPayment = useCallback(async (paymentData: any) => {
     const abortController = new AbortController();
+    
+    // Get authentication token
+    const token = localStorage.getItem('token');
+    if (!token) {
+      showMessage('error', 'Authentication required. Please log in.');
+      navigate('/login');
+      return;
+    }
 
     try {
-      const verificationResponse = await fetch('/api/v1/subscription/verify-payment', {
+      const verificationResponse = await fetch(`${API_BASE_URL}/api/v1/subscription/verify-payment`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(paymentData),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`  // Add token for authentication
+        },
+        body: JSON.stringify({
+          ...paymentData
+        }),
         signal: abortController.signal
       });
 
-      if (!verificationResponse.ok) throw new Error('Verification failed');
+      if (!verificationResponse.ok) {
+        const errorData = await verificationResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Verification failed');
+      }
 
       const verificationData = await verificationResponse.json();
 
       if (verificationData.success) {
-        showMessage('success', 'Payment successful! Your order has been placed.');
+        showMessage('success', 'Payment successful! Your premium subscription is now active.');
         setState(prev => ({
           ...prev,
           name: '',
@@ -162,7 +219,7 @@ const PaymentForm: React.FC = () => {
     }
 
     return () => abortController.abort();
-  }, [showMessage]);
+  }, [showMessage, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-gray-100 relative overflow-hidden">
@@ -272,8 +329,12 @@ const PaymentForm: React.FC = () => {
                     min="1"
                     value={state.amount}
                     onChange={handleInputChange}
-                    className="w-full bg-gray-700/20 border border-gray-600/20 rounded-lg px-4 py-3 text-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    disabled={!!planId} // Disable editing if plan was selected
+                    className="w-full bg-gray-700/20 border border-gray-600/20 rounded-lg px-4 py-3 text-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                   />
+                  {planId && (
+                    <p className="mt-1 text-xs text-gray-400">Amount set based on selected plan</p>
+                  )}
                 </div>
               </div>
 

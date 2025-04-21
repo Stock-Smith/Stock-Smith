@@ -1,452 +1,291 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  CreditCardIcon, 
-  ShieldCheckIcon, 
-  ClockIcon, 
-  CheckCircleIcon, 
-  XCircleIcon,
-  RefreshCwIcon,
-  AlertCircleIcon,
-  CalendarIcon
-} from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useAuthStore } from './Home'; // Importing the auth store from Home component
+import { Check, X, Shield, LifeBuoy, CreditCard } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
-// Animation configurations
-const fadeIn = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
-};
+interface Feature {
+  dailyPredictionLimit: number;
+}
 
-const UserService = () => {
-  const { isAuthenticated, user } = useAuthStore();
-  const [subscription, setSubscription] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+interface Price {
+  amount: number;
+  currency: string;
+  billingCycle: string;
+}
 
-  // Mock subscription data since we don't have a real backend
-  const mockSubscriptionData = {
-    free: {
-      userId: "user123",
-      subscriptionType: "free",
-      subscription: {
-        status: "active",
-        startDate: new Date(2025, 2, 15), // March 15, 2025
-        endDate: null,
-        currentPlanId: "free_plan_123"
-      },
-      features: [
-        { name: "Basic Market Data", included: true },
-        { name: "Limited Analytics", included: true },
-        { name: "5 Watchlists", included: true },
-        { name: "Daily Market Reports", included: false },
-        { name: "AI Predictions", included: false },
-        { name: "Premium Research", included: false }
-      ]
-    },
-    premium: {
-      userId: "user456",
-      subscriptionType: "premium",
-      subscription: {
-        status: "active",
-        startDate: new Date(2025, 1, 10), // Feb 10, 2025
-        endDate: new Date(2026, 1, 10), // Feb 10, 2026
-        currentPlanId: "premium_plan_456"
-      },
-      features: [
-        { name: "Advanced Market Data", included: true },
-        { name: "Full Analytics Suite", included: true },
-        { name: "Unlimited Watchlists", included: true },
-        { name: "Real-time Market Reports", included: true },
-        { name: "AI Predictions & Alerts", included: true },
-        { name: "Premium Research Access", included: true }
-      ]
-    }
-  };
+interface Plan {
+  _id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+  price: Price;
+  features: Feature;
+}
 
-  // Plans available for upgrade
-  const availablePlans = [
-    {
-      id: "premium_monthly",
-      name: "Premium Monthly",
-      price: "$49.99",
-      billingCycle: "monthly",
-      description: "Full access to all premium features"
-    },
-    {
-      id: "premium_annual",
-      name: "Premium Annual",
-      price: "$499.99",
-      billingCycle: "annual",
-      description: "Save 17% with our annual plan",
-      popular: true
-    }
-  ];
+interface PlansResponse {
+  success: boolean;
+  plans: Plan[];
+}
 
-  // Simulate fetching subscription data
+const UserSubscription: React.FC = () => {
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const navigate = useNavigate();
+
   useEffect(() => {
-    const fetchSubscription = async () => {
-      setLoading(true);
+    const fetchPlans = async () => {
       try {
-        // In a real app, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('Authentication token not found');
+        }
+
+        const response = await fetch('http://localhost/api/v1/subscription/fetch-plans', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch subscription plans');
+        }
+
+        const data: PlansResponse = await response.json();
         
-        // For demo purposes, randomly assign free or premium
-        // In a real app, you would use the actual user ID to fetch their subscription
-        const mockData = Math.random() > 0.5 ? mockSubscriptionData.free : mockSubscriptionData.premium;
-        setSubscription(mockData);
-        setError(null);
+        if (data.success && data.plans) {
+          setPlans(data.plans.filter(plan => plan.isActive));
+        } else {
+          throw new Error('Invalid response format');
+        }
       } catch (err) {
-        setError("Failed to load subscription data. Please try again later.");
+        setError(err instanceof Error ? err.message : 'An unknown error occurred');
       } finally {
         setLoading(false);
       }
     };
 
-    if (isAuthenticated) {
-      fetchSubscription();
+    fetchPlans();
+  }, []);
+
+  const handleSelectPlan = (planId: string, amount: number) => {
+    navigate(`/payment?planId=${planId}&amount=${amount}`);
+  };
+
+  const formatPrice = (amount: number, currency: string): string => {
+    if (amount === 0) return 'Free';
+    
+    // Format for Indian Rupees
+    if (currency === 'INR') {
+      return `₹${amount.toLocaleString('en-IN')}`;
     }
-  }, [isAuthenticated]);
-
-  // Format date for display
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    
+    return `${amount} ${currency}`;
   };
 
-  // Handle upgrade subscription
-  const handleUpgrade = () => {
-    setShowUpgradeModal(true);
+  const getFeatureDescription = (limit: number): string => {
+    if (limit === -1) return 'Unlimited predictions';
+    return `${limit} predictions per day`;
   };
 
-  // Modal for upgrading subscription
-  const UpgradeModal = () => {
-    const [selectedPlan, setSelectedPlan] = useState(null);
+  const getPlanBadge = (type: string) => {
+    switch (type) {
+      case 'free':
+        return <Badge className="bg-blue-900/30 text-blue-300 border-blue-600/30">Free</Badge>;
+      case 'premium':
+        return <Badge className="bg-purple-900/30 text-purple-300 border-purple-600/30">Premium</Badge>;
+      default:
+        return null;
+    }
+  };
 
-    const handleConfirmUpgrade = async () => {
-      try {
-        // This would be an API call in a real application
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Update local state to reflect changes
-        setSubscription({
-          ...mockSubscriptionData.premium,
-          subscription: {
-            ...mockSubscriptionData.premium.subscription,
-            startDate: new Date(),
-            endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1))
-          }
-        });
-        
-        setShowUpgradeModal(false);
-      } catch (error) {
-        setError("Failed to upgrade subscription. Please try again.");
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
       }
-    };
-
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-gray-900/90 backdrop-blur-md rounded-xl border border-white/10 p-6 w-full max-w-2xl"
-        >
-          <h2 className="text-2xl font-bold text-white mb-6">Upgrade Your Subscription</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-            {availablePlans.map((plan) => (
-              <div 
-                key={plan.id}
-                className={`relative bg-gray-800/50 border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                  selectedPlan === plan.id 
-                    ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
-                    : 'border-gray-700 hover:border-gray-500'
-                }`}
-                onClick={() => setSelectedPlan(plan.id)}
-              >
-                {plan.popular && (
-                  <Badge className="absolute -top-2 -right-2 bg-blue-600">
-                    Popular
-                  </Badge>
-                )}
-                <h3 className="text-lg font-semibold text-white mb-1">{plan.name}</h3>
-                <p className="text-2xl font-bold text-blue-400 mb-2">{plan.price} <span className="text-sm text-gray-400">/{plan.billingCycle}</span></p>
-                <p className="text-gray-400 text-sm">{plan.description}</p>
-                {selectedPlan === plan.id && (
-                  <CheckCircleIcon className="absolute top-2 right-2 text-blue-500 w-5 h-5" />
-                )}
-              </div>
-            ))}
-          </div>
-          
-          <div className="flex flex-col sm:flex-row gap-3 justify-end">
-            <Button 
-              variant="outline" 
-              className="border-gray-600 text-gray-300 hover:bg-gray-800"
-              onClick={() => setShowUpgradeModal(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={!selectedPlan}
-              onClick={handleConfirmUpgrade}
-            >
-              Confirm Upgrade
-            </Button>
-          </div>
-        </motion.div>
-      </div>
-    );
+    }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] bg-gray-900/20 backdrop-blur-sm rounded-2xl border border-white/10 p-8">
-        <AlertCircleIcon className="w-16 h-16 text-yellow-500 mb-4" />
-        <h2 className="text-2xl font-bold text-white mb-2">Authentication Required</h2>
-        <p className="text-gray-400 text-center max-w-md mb-6">
-          You need to be logged in to access your subscription details.
-        </p>
-        <Button 
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-        >
-          Login to Continue
-        </Button>
-      </div>
-    );
-  }
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.6
+      }
+    }
+  };
 
   return (
-    <motion.div 
-      initial="hidden"
-      animate="visible"
-      variants={fadeIn}
-      className="max-w-6xl mx-auto"
-    >
-      <div className="bg-gray-900/20 backdrop-blur-sm rounded-2xl border border-white/10 p-8 mb-10">
-        <h1 className="text-3xl font-bold text-white mb-6 flex items-center">
-          <CreditCardIcon className="mr-3 text-blue-400" /> 
-          Subscription Management
-        </h1>
-        
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 text-gray-100 py-16 px-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-12">
+          <motion.h1 
+            className="text-4xl font-bold mb-4"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            Choose Your Subscription Plan
+          </motion.h1>
+          <motion.p 
+            className="text-gray-400 max-w-2xl mx-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            Select the plan that works best for you and unlock powerful prediction capabilities
+          </motion.p>
+        </div>
+
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12">
-            <RefreshCwIcon className="w-12 h-12 text-blue-400 animate-spin mb-4" />
-            <p className="text-gray-400">Loading your subscription details...</p>
+          <div className="flex justify-center items-center h-64">
+            <svg className="animate-spin h-10 w-10 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
           </div>
         ) : error ? (
-          <div className="bg-red-900/20 border border-red-800/40 rounded-lg p-4 text-center">
-            <AlertCircleIcon className="w-12 h-12 text-red-500 mx-auto mb-2" />
+          <div className="bg-red-900/30 border border-red-600/40 p-6 rounded-lg text-center">
             <p className="text-red-300">{error}</p>
-            <Button 
-              className="mt-4 bg-red-700 hover:bg-red-800 text-white"
+            <button 
               onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-red-700/50 hover:bg-red-700/70 rounded-md text-white transition-colors"
             >
               Try Again
-            </Button>
+            </button>
           </div>
         ) : (
-          <div className="space-y-8">
-            {/* Subscription Overview Card */}
-            <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-xl border border-white/10 shadow-lg p-6">
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-white mb-1">
-                    {subscription.subscriptionType === 'premium' ? 'Premium Plan' : 'Free Plan'}
-                  </h2>
-                  <div className="flex items-center">
-                    <Badge className={subscription.subscription.status === 'active' 
-                      ? 'bg-green-600/80' 
-                      : 'bg-red-600/80'
-                    }>
-                      {subscription.subscription.status.charAt(0).toUpperCase() + subscription.subscription.status.slice(1)}
-                    </Badge>
-                    {subscription.subscriptionType === 'premium' && (
-                      <p className="text-gray-400 text-sm ml-3">
-                        Renews: {formatDate(subscription.subscription.endDate)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                
-                {subscription.subscriptionType === 'free' && (
-                  <Button 
-                    className="mt-4 md:mt-0 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-blue-600/20"
-                    onClick={handleUpgrade}
-                  >
-                    Upgrade to Premium
-                  </Button>
-                )}
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="flex items-center mb-2">
-                    <ShieldCheckIcon className="w-5 h-5 text-blue-400 mr-2" />
-                    <h3 className="text-gray-200 font-medium">Plan Type</h3>
-                  </div>
-                  <p className="text-lg font-semibold text-white">
-                    {subscription.subscriptionType.charAt(0).toUpperCase() + subscription.subscriptionType.slice(1)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="flex items-center mb-2">
-                    <CalendarIcon className="w-5 h-5 text-blue-400 mr-2" />
-                    <h3 className="text-gray-200 font-medium">Start Date</h3>
-                  </div>
-                  <p className="text-lg font-semibold text-white">
-                    {formatDate(subscription.subscription.startDate)}
-                  </p>
-                </div>
-                
-                <div className="bg-gray-800/50 rounded-lg p-4">
-                  <div className="flex items-center mb-2">
-                    <ClockIcon className="w-5 h-5 text-blue-400 mr-2" />
-                    <h3 className="text-gray-200 font-medium">
-                      {subscription.subscriptionType === 'premium' ? 'Expires' : 'Billing Cycle'}
-                    </h3>
-                  </div>
-                  <p className="text-lg font-semibold text-white">
-                    {subscription.subscriptionType === 'premium' 
-                      ? formatDate(subscription.subscription.endDate)
-                      : 'N/A'
-                    }
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Features List */}
-            <div className="bg-gray-900/50 rounded-xl border border-white/10 p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Included Features</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {subscription.features.map((feature, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-center p-3 border border-gray-800/80 rounded-lg bg-gray-800/30"
-                  >
-                    {feature.included ? (
-                      <CheckCircleIcon className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
-                    ) : (
-                      <XCircleIcon className="w-5 h-5 text-gray-500 mr-3 flex-shrink-0" />
-                    )}
-                    <span className={feature.included ? "text-white" : "text-gray-500"}>
-                      {feature.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              
-              {subscription.subscriptionType === 'free' && (
-                <div className="mt-6 text-center">
-                  <p className="text-gray-400 mb-4">
-                    Upgrade to Premium to unlock all features and maximize your investment potential.
-                  </p>
-                  <Button 
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                    onClick={handleUpgrade}
-                  >
-                    Upgrade Now
-                  </Button>
-                </div>
-              )}
-            </div>
-            
-            {/* Billing History for Premium users */}
-            {subscription.subscriptionType === 'premium' && (
-              <div className="bg-gray-900/50 rounded-xl border border-white/10 p-6">
-                <h3 className="text-xl font-bold text-white mb-4">Billing History</h3>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left">
-                        <th className="pb-3 text-gray-400 font-medium">Date</th>
-                        <th className="pb-3 text-gray-400 font-medium">Description</th>
-                        <th className="pb-3 text-gray-400 font-medium">Amount</th>
-                        <th className="pb-3 text-gray-400 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-gray-800">
-                        <td className="py-3 text-gray-300">Feb 10, 2025</td>
-                        <td className="py-3 text-gray-300">Premium Subscription - Annual</td>
-                        <td className="py-3 text-white font-medium">$499.99</td>
-                        <td className="py-3">
-                          <Badge className="bg-green-600/80">Paid</Badge>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-      
-      {/* FAQ Section */}
-      <div className="bg-gray-900/20 backdrop-blur-sm rounded-2xl border border-white/10 p-8 mb-10">
-        <h2 className="text-2xl font-bold text-white mb-6">Frequently Asked Questions</h2>
-        
-        <div className="space-y-4">
-          <div className="bg-gray-800/30 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">How do I cancel my subscription?</h3>
-            <p className="text-gray-400">
-              You can cancel your subscription at any time from your account settings. Your premium access will remain active until the end of your current billing period.
-            </p>
-          </div>
-          
-          <div className="bg-gray-800/30 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">What's included in the Premium plan?</h3>
-            <p className="text-gray-400">
-              Premium subscribers get access to advanced analytics, AI-powered market predictions, unlimited watchlists, real-time alerts, and premium research reports.
-            </p>
-          </div>
-          
-          <div className="bg-gray-800/30 rounded-lg p-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Can I switch between monthly and annual billing?</h3>
-            <p className="text-gray-400">
-              Yes, you can switch between billing cycles when your current subscription period ends. The change will take effect at your next billing date.
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      {/* Support Section */}
-      <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 rounded-2xl border border-white/10 p-8">
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Need Help?</h2>
-            <p className="text-gray-300 mb-4 md:mb-0">
-              Our support team is available 24/7 to assist you with any questions about your subscription.
-            </p>
-          </div>
-          
-          <Button 
-            className="bg-white text-gray-900 hover:bg-gray-100"
-            size="lg"
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
           >
-            Contact Support
-          </Button>
-        </div>
+            {plans.map((plan) => (
+              <motion.div 
+                key={plan._id}
+                variants={itemVariants}
+                className={`
+                  bg-gray-800/40 backdrop-blur-sm border rounded-xl overflow-hidden shadow-xl transition-all duration-300
+                  ${plan.type === 'premium' ? 'border-indigo-500/30 shadow-indigo-900/20 hover:shadow-indigo-900/30' : 'border-gray-700/40 hover:border-gray-600/60'}
+                `}
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-xl font-bold mb-1">{plan.name}</h3>
+                      {getPlanBadge(plan.type)}
+                    </div>
+                    {plan.type === 'premium' && (
+                      <div className="flex items-center gap-1">
+                        <Shield size={16} className="text-indigo-400" />
+                        <span className="text-xs text-indigo-400">Premium</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mb-6">
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-bold">
+                        {formatPrice(plan.price.amount, plan.price.currency)}
+                      </span>
+                      {plan.price.amount > 0 && (
+                        <span className="text-gray-400 ml-2">
+                          /{plan.price.billingCycle === 'monthly' ? 'month' : 'year'}
+                        </span>
+                      )}
+                    </div>
+                    {plan.price.billingCycle === 'annually' && plan.price.amount > 0 && (
+                      <p className="text-green-400 text-sm mt-1">Save 17% with annual billing</p>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-3 mb-8">
+                    <div className="flex items-start gap-3">
+                      {plan.features.dailyPredictionLimit === -1 ? (
+                        <Check size={18} className="text-green-400 mt-0.5" />
+                      ) : (
+                        <span className="w-5 h-5 text-center text-xs bg-blue-900/30 text-blue-300 rounded-full flex items-center justify-center mt-0.5">
+                          {plan.features.dailyPredictionLimit}
+                        </span>
+                      )}
+                      <span>{getFeatureDescription(plan.features.dailyPredictionLimit)}</span>
+                    </div>
+                    
+                    {plan.type === 'premium' ? (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <Check size={18} className="text-green-400 mt-0.5" />
+                          <span>Priority customer support</span>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <Check size={18} className="text-green-400 mt-0.5" />
+                          <span>Advanced analytics</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-start gap-3">
+                          <X size={18} className="text-gray-500 mt-0.5" />
+                          <span className="text-gray-500">Priority customer support</span>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <X size={18} className="text-gray-500 mt-0.5" />
+                          <span className="text-gray-500">Advanced analytics</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  
+                  <button
+                    onClick={() => handleSelectPlan(plan._id, plan.price.amount)}
+                    className={`
+                      w-full py-3 px-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2
+                      ${plan.type === 'premium' 
+                        ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white' 
+                        : 'bg-gray-700 hover:bg-gray-600 text-white'}
+                    `}
+                  >
+                    <CreditCard size={18} />
+                    {plan.price.amount === 0 ? 'Continue with Free' : 'Select Plan'}
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+
+        <motion.div 
+          className="mt-16 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+        >
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <LifeBuoy size={20} className="text-indigo-400" />
+            <h3 className="text-lg font-medium text-gray-300">Need help choosing?</h3>
+          </div>
+          <p className="text-gray-400 max-w-2xl mx-auto">
+            Contact our customer support team for guidance on selecting the right plan for your needs.
+          </p>
+          <a 
+            href="mailto:support@example.com" 
+            className="inline-block mt-4 text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
+            support@example.com
+          </a>
+        </motion.div>
       </div>
-      
-      {/* Upgrade Modal */}
-      {showUpgradeModal && <UpgradeModal />}
-    </motion.div>
+    </div>
   );
 };
 
-export default UserService;
+export default UserSubscription;

@@ -31,21 +31,32 @@ interface UnrealizedGainData {
 
 interface StockData {
   ticker: string;
-  name: string;
-  price: number;
+  name?: string;
+  price?: number;
   changePercent?: number;
   latestValue?: number;
   investedValue?: number;
   change?: number;
+  sector?: string;
+  currentQuantity?: number;
+  beta?: number;
 }
 
 interface DailyGainLossProps {
   userId?: string;
-  stockData: StockData[]; // Updated with more specific type
-  priceData: Record<string, any>; // Price data from socket
+  stockData?: StockData[]; 
+  priceData?: Record<string, any>;
+  todayGain?: number;
+  todayGainPercentage?: number;
 }
 
-const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceData }) => {
+const DailyGainLoss: React.FC<DailyGainLossProps> = ({ 
+  userId, 
+  stockData = [], 
+  priceData = {},
+  todayGain,
+  todayGainPercentage
+}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [todayData, setTodayData] = useState<GainLossData | null>(null);
   const [unrealizedData, setUnrealizedData] = useState<UnrealizedGainData | null>(null);
@@ -67,6 +78,43 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
 
   // Process real stock data instead of using mock data
   useEffect(() => {
+    // If we have direct todayGain values, use simplified mode
+    if (todayGain !== undefined && todayGainPercentage !== undefined) {
+      // Create simplified data for direct value mode
+      setTodayData({
+        gaining: stockData.filter(s => (s.changePercent || 0) > 0).length,
+        losing: stockData.filter(s => (s.changePercent || 0) <= 0).length,
+        total: stockData.length,
+        gainingPercent: todayGainPercentage > 0 ? todayGainPercentage : 0,
+        losingPercent: todayGainPercentage < 0 ? todayGainPercentage : 0,
+        topGainers: [],
+        topLosers: []
+      });
+      
+      // Create simplified unrealized data
+      const inProfit = stockData.filter(s => 
+        (s.latestValue || 0) > (s.investedValue || 0)
+      );
+      
+      const inLoss = stockData.filter(s => 
+        (s.latestValue || 0) <= (s.investedValue || 0) && 
+        (s.investedValue || 0) > 0
+      );
+      
+      setUnrealizedData({
+        inProfit: inProfit.length,
+        inLoss: inLoss.length,
+        total: stockData.length,
+        inProfitPercent: todayGainPercentage > 0 ? todayGainPercentage : 0,
+        inLossPercent: todayGainPercentage < 0 ? todayGainPercentage : 0,
+        highestProfit: [],
+        highestLoss: []
+      });
+      
+      setIsLoading(false);
+      return;
+    }
+
     if (!stockData || stockData.length === 0) {
       setError("No stock data available");
       setIsLoading(false);
@@ -84,7 +132,7 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
           ...stock,
           name: stock.name || ticker,
           price: priceInfo.price || stock.price || 0,
-          change: priceInfo.change || 0,
+          change: priceInfo.change || stock.change || 0,
           changePercent: priceInfo.changePercent || stock.changePercent || 0,
           latestValue: stock.latestValue || 0,
           investedValue: stock.investedValue || 0
@@ -119,7 +167,6 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
       );
       
       // Calculate overall profit/loss percentages - with safety checks
-      // Fixed: Added explicit type for 'stocks' parameter
       const calculateOverallPercent = (stocks: StockData[]): number => {
         if (stocks.length === 0) return 0;
         const totalInvested = stocks.reduce((sum, stock) => sum + (stock.investedValue || 0), 0);
@@ -206,7 +253,7 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
       setError("Failed to process stock data");
       setIsLoading(false);
     }
-  }, [stockData, priceData]);
+  }, [stockData, priceData, todayGain, todayGainPercentage]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -262,8 +309,6 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
   const hasLosers = todayData.topLosers && todayData.topLosers.length > 0;
   const hasProfit = unrealizedData.highestProfit && unrealizedData.highestProfit.length > 0;
   const hasLoss = unrealizedData.highestLoss && unrealizedData.highestLoss.length > 0;
-
-  
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -501,3 +546,4 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
 };
 
 export default DailyGainLoss;
+

@@ -13,19 +13,48 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
   const [stockData, setStockData] = useState<StockData | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [priceData, setPriceData] = useState<{
+    price?: number;
+    change?: number;
+    changePercent?: number;
+  }>({});
 
   // Effect to set the page background when component mounts
   useEffect(() => {
-    // Set the background color of the body and html elements
     document.body.classList.add('bg-black');
     document.documentElement.classList.add('bg-black');
 
-    // Clean up when component unmounts
     return () => {
       document.body.classList.remove('bg-black');
       document.documentElement.classList.remove('bg-black');
     };
   }, []);
+
+  // Function to fetch real-time price data from Finnhub
+  const fetchPriceData = async (symbol: string) => {
+    const API_KEY = import.meta.env.VITE_FINNHUB_API_KEY;
+    if (!API_KEY) {
+      console.error("API key missing");
+      return { price: undefined, change: undefined, changePercent: undefined };
+    }
+
+    const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${API_KEY}`;
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      const price = data.c;
+      const change = data.d;
+      const changePercent = data.dp;
+      console.log(`Ticker: ${symbol}`);
+      console.log(`Price: $${price}`);
+      console.log(`Change: $${change}`);
+      console.log(`Change %: ${changePercent}%`);
+      return { price, change, changePercent };
+    } catch (error) {
+      console.error("Error fetching stock data:", error);
+      return { price: undefined, change: undefined, changePercent: undefined };
+    }
+  };
 
   useEffect(() => {
     const fetchStockData = async () => {
@@ -33,6 +62,7 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
       setError(null);
 
       try {
+        // Fetch stock details
         const response = await fetch(`http://localhost:8003/api/v1/stock/details?ticker=${ticker}`);
 
         if (!response.ok) {
@@ -41,10 +71,22 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
 
         const data = await response.json();
         setStockData(data);
+
+        // Fetch real-time price data
+        const priceInfo = await fetchPriceData(ticker);
+        setPriceData(priceInfo);
       } catch (err) {
         console.error("Error fetching stock data:", err);
         setError(`Failed to load data for ${ticker}. Using mock data instead.`);
         setStockData(MOCK_STOCK_DATA); // Fallback to mock data
+        
+        // Try to fetch price data even if other data failed
+        try {
+          const priceInfo = await fetchPriceData(ticker);
+          setPriceData(priceInfo);
+        } catch (priceErr) {
+          console.error("Error fetching price data:", priceErr);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -106,11 +148,10 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
     AnalystRatingStrongSell,
   } = stockData;
 
-  // Calculate price change (this would normally come from real-time data)
-  const mockCurrentPrice = 210.35;
-  const mockPreviousClose = 208.76;
-  const priceChange = mockCurrentPrice - mockPreviousClose;
-  const priceChangePercentage = (priceChange / mockPreviousClose) * 100;
+  // Use real price data if available, otherwise fall back to mock data
+  const currentPrice = priceData.price ?? 210.35;
+  const priceChange = priceData.change ?? (210.35 - 208.76);
+  const priceChangePercentage = priceData.changePercent ?? ((priceChange / 208.76) * 100);
   const isPriceUp = priceChange >= 0;
 
   // Calculate total analyst ratings
@@ -140,9 +181,8 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
               </h1>
               <p className="text-gray-400">{Exchange} • {Sector} • {Industry}</p>
             </div>
-
             <div className="flex flex-col items-end">
-              <div className="text-3xl font-bold">${mockCurrentPrice.toFixed(2)}</div>
+              <div className="text-3xl font-bold">${currentPrice.toFixed(2)}</div>
               <div className={`flex items-center ${isPriceUp ? "text-green-400" : "text-red-400"}`}>
                 {isPriceUp ? <ArrowUp className="h-4 w-4 mr-1" /> : <ArrowDown className="h-4 w-4 mr-1" />}
                 <span>${Math.abs(priceChange).toFixed(2)} ({priceChangePercentage.toFixed(2)}%)</span>
@@ -400,18 +440,26 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
                   <h3 className="text-lg font-medium mb-4 text-white text-center">Price Target</h3>
                   <div className="space-y-4">
                     {[
-                      { label: "Current Price", value: `$${mockCurrentPrice.toFixed(2)}`, color: "text-white" },
-                      { label: "Analyst Target", value: `$${AnalystTargetPrice}`, color: "text-white" },
+                      { 
+                        label: "Current Price", 
+                        value: `$${priceData.price ? priceData.price.toFixed(2) : "N/A"}`, 
+                        color: "text-white" 
+                      },
+                      { 
+                        label: "Analyst Target", 
+                        value: `$${AnalystTargetPrice}`, 
+                        color: "text-white" 
+                      },
                       {
                         label: `Potential ${
-                          Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice ? "Upside" : "Downside"
+                          Number.parseFloat(AnalystTargetPrice) > (priceData.price || 0) ? "Upside" : "Downside"
                         }`,
-                        value:
+                        value: priceData.price ? 
                           Math.abs(
-                            ((Number.parseFloat(AnalystTargetPrice) - mockCurrentPrice) / mockCurrentPrice) * 100,
-                          ).toFixed(2) + "%",
+                            ((Number.parseFloat(AnalystTargetPrice) - priceData.price) / priceData.price) * 100
+                          ).toFixed(2) + "%" : "N/A",
                         color:
-                          Number.parseFloat(AnalystTargetPrice) > mockCurrentPrice
+                          Number.parseFloat(AnalystTargetPrice) > (priceData.price || 0)
                             ? "text-green-400"
                             : "text-red-400",
                       },
@@ -427,6 +475,7 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
                       </div>
                     ))}
                   </div>
+
                 </div>
 
                 </div>

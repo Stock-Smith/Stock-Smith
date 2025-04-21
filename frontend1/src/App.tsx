@@ -9,7 +9,8 @@ import PaymentForm from "./pages/payment";
 import StockDetailPage from "./pages/stockdetails";
 import Navbar from "./components/Navbar";
 import AuthForm from "./components/AuthForm";
-
+import UserSubscription from "./pages/UserService";
+import  StockPredictionPage from './pages/PredictionPage'
 // Auth wrapper component to handle query parameters
 const AuthWrapper = () => {
   const [searchParams] = useSearchParams();
@@ -31,11 +32,25 @@ const App = () => {
             <Route path="/login" element={<AuthForm type="login" />} />
             <Route path="/register" element={<AuthForm type="signup" />} />
             <Route path="/auth" element={<AuthWrapper />} />
-            <Route path="/portfolio" element={isAuthenticated ? <Portfolio /> : <Navigate to="/login" />} />
+            <Route 
+          path="/portfolio" 
+          element={isAuthenticated ? <Portfolio /> : <Navigate to="/auth?type=login" />} 
+        />
+        <Route 
+          path="/watchlist" 
+          element={isAuthenticated ? <Watchlist /> : <Navigate to="/auth?type=login" />} 
+        />
+        <Route 
+          path="/payment" 
+          element={isAuthenticated ? <PaymentForm /> : <Navigate to="/auth?type=login" />} 
+        />
+        <Route 
+          path="/subscription" 
+          element={isAuthenticated ? <UserSubscription /> : <Navigate to="/auth?type=login" />} 
+        />
             <Route path="/watchlist" element={isAuthenticated ? <Watchlist /> : <Navigate to="/login" />} />
-            <Route path="/subscription" element={isAuthenticated ? <PaymentForm /> : <Navigate to="/login" />} />
             <Route path="/news" element={isAuthenticated ? <News /> : <Navigate to="/login" />} />
-            <Route path="/stock/:ticker" element={<StockDetailPage ticker=":ticker" />} />
+            <Route path="/stock/:ticker" element={<StockPredictionPage />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
