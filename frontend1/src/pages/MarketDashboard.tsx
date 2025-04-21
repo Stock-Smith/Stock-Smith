@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Table, 
@@ -18,8 +17,9 @@ import {
   ArrowUpIcon, ArrowDownIcon, TrendingUpIcon, 
   LineChartIcon, AlertCircleIcon, SearchIcon,
   ExternalLinkIcon, ChevronRightIcon, ActivityIcon,
-  Layers, Bell, BarChart3, TrendingDown
+  Layers, Bell, BarChart3, TrendingDown, XIcon
 } from "lucide-react";
+import Papa from "papaparse";
 
 // Animation variants
 const containerVariants = {
@@ -54,6 +54,13 @@ const fadeInUp = {
       ease: [0.22, 1, 0.36, 1]
     }
   }
+};
+
+// CSV Configuration
+const CSV_URL = "merged_symbols.csv";
+type CsvStock = {
+  Symbol: string;
+  "Security Name": string;
 };
 
 // Market Data Types
@@ -112,13 +119,99 @@ interface MarketDataProps {
   usMarketData: USMarketData;
 }
 
+const MAX_SUGGESTIONS = 6;
+
 const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers, usMarketData }) => {
+  // States for search functionality
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredData, setFilteredData] = useState(marketData);
+  const [filteredData, setFilteredData] = useState<MarketDataItem[]>(marketData);
   const [timeframe, setTimeframe] = useState("1D");
   const [marketView, setMarketView] = useState("dow");
   const [institutionalView, setInstitutionalView] = useState("buying");
   const [chartHovered, setChartHovered] = useState(false);
+  
+  // Advanced search states
+  const [csvData, setCsvData] = useState<CsvStock[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [stockSuggestions, setStockSuggestions] = useState<CsvStock[]>([]);
+  const [highlightedSuggestion, setHighlightedSuggestion] = useState(-1);
+  
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Load CSV data on component mount
+  useEffect(() => {
+    fetch(CSV_URL)
+      .then(response => response.text())
+      .then(data => {
+        const results = Papa.parse<CsvStock>(data, {
+          header: true,
+          skipEmptyLines: true
+        });
+        
+        if (results.errors.length > 0) {
+          setError("CSV parsing errors: " + results.errors.map(e => e.message).join(', '));
+          return;
+        }
+        
+        setCsvData(results.data);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        setError("Failed to load stock symbols: " + err.message);
+        setIsLoading(false);
+      });
+  }, []);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node) &&
+          searchInputRef.current && !searchInputRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
+  // Handle keyboard navigation for suggestions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!showSuggestions) return;
+      
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setHighlightedSuggestion(prev => 
+            prev < stockSuggestions.length - 1 ? prev + 1 : prev
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setHighlightedSuggestion(prev => prev > 0 ? prev - 1 : 0);
+          break;
+        case 'Enter':
+          if (highlightedSuggestion >= 0 && highlightedSuggestion < stockSuggestions.length) {
+            handleSuggestionSelect(stockSuggestions[highlightedSuggestion]);
+          }
+          break;
+        case 'Escape':
+          setShowSuggestions(false);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showSuggestions, highlightedSuggestion, stockSuggestions]);
 
   // Handle search functionality
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,14 +220,55 @@ const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers,
     
     if (term.trim() === "") {
       setFilteredData(marketData);
-    } else {
-      const filtered = marketData.filter(
-        stock => 
-          stock.symbol.toLowerCase().includes(term.toLowerCase()) || 
-          stock.name.toLowerCase().includes(term.toLowerCase())
-      );
-      setFilteredData(filtered);
+      setShowSuggestions(false);
+      setStockSuggestions([]);
+      return;
     }
+    
+    // Filter market data for the table
+    const filtered = marketData.filter(
+      stock => 
+        stock.symbol.toLowerCase().includes(term.toLowerCase()) || 
+        stock.name.toLowerCase().includes(term.toLowerCase())
+    );
+    setFilteredData(filtered);
+    
+    // Generate suggestions from CSV data
+    if (csvData && csvData.length > 0) {
+      const suggestions = csvData
+        .filter(stock => {
+          const symbol = stock?.Symbol?.toLowerCase() || '';
+          const securityName = stock?.['Security Name']?.toLowerCase() || '';
+          return symbol.includes(term.toLowerCase()) || securityName.includes(term.toLowerCase());
+        })
+        .slice(0, MAX_SUGGESTIONS);
+      
+      setStockSuggestions(suggestions);
+      setShowSuggestions(suggestions.length > 0);
+      setHighlightedSuggestion(-1);
+    }
+  };
+
+  const handleSuggestionSelect = (suggestion: CsvStock) => {
+    // Find if the stock exists in our market data
+    const stockMatch = marketData.find(s => s.symbol === suggestion.Symbol);
+    
+    if (stockMatch) {
+      setSearchTerm(stockMatch.symbol);
+      setFilteredData([stockMatch]);
+    } else {
+      // Handle case when stock is in CSV but not in our market data
+      setSearchTerm(suggestion.Symbol);
+      setFilteredData([]);
+    }
+    
+    setShowSuggestions(false);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm("");
+    setFilteredData(marketData);
+    setShowSuggestions(false);
   };
 
   // Time periods for chart selection
@@ -150,6 +284,23 @@ const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers,
     } else {
       return "M0,20 C20,25 40,30 60,35 C80,40 100,45 120,40 C140,35 160,50 180,55 C200,60 220,65 240,60 C260,55 280,50 300,55";
     }
+  };
+
+  // Error display component
+  const ErrorDisplay = ({ error }: { error: string | null }) => {
+    if (!error) return null;
+    
+    return (
+      <motion.div 
+        className="mb-4 p-4 bg-red-900/30 rounded-lg border border-red-700/40 flex items-center"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <AlertCircleIcon className="w-5 h-5 mr-2 text-red-400" />
+        <span className="text-red-300">{error}</span>
+      </motion.div>
+    );
   };
 
   return (
@@ -176,6 +327,9 @@ const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers,
           </Badge>
         </div>
       </motion.div>
+
+      {/* Display errors if any */}
+      {error && <ErrorDisplay error={error} />}
 
       {/* Main Market Dashboard */}
       <motion.div variants={itemVariants}>
@@ -470,37 +624,22 @@ const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers,
                         </tr>
                       </thead>
                       <tbody>
-                        {usMarketData.institutionalActivity.map((item, index) => {
-                          const dateParts = item.date.split('-');
-                          const formattedDate = `${dateParts[1]}/${dateParts[2]}/${dateParts[0].slice(2)}`;
-                          
-                          return (
-                            <motion.tr 
-                              key={index} 
-                              className="border-b border-gray-800/50 hover:bg-gray-800/30"
-                              initial={{ opacity: 0, y: 5 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
-                              whileHover={{ backgroundColor: "rgba(31, 41, 55, 0.4)" }}
-                            >
-                              <td className="py-2.5 text-xs font-medium text-gray-300">{formattedDate}</td>
-                              <td className="py-2.5 text-right text-xs font-medium text-green-400">
-                                +${(item.netBuying/1000).toFixed(2)}B
-                              </td>
-                              <td className="py-2.5 text-right text-xs font-medium text-red-400">
-                                ${(item.netSelling/1000).toFixed(2)}B
-                              </td>
-                            </motion.tr>
-                          );
-                        })}
+                      {usMarketData.institutionalActivity.map((item, index) => (
+  <motion.tr 
+    key={index} 
+    className="border-b border-gray-800/50 hover:bg-gray-800/30 cursor-pointer"
+    initial={{ opacity: 0, y: 5 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: index * 0.1 }}
+    whileHover={{ backgroundColor: "rgba(31, 41, 55, 0.4)" }}
+  >
+    <td className="py-2 text-sm font-medium text-gray-300">{item.date}</td>
+    <td className="py-2 text-right text-sm font-medium text-green-400">${item.netBuying.toLocaleString()}</td>
+    <td className="py-2 text-right text-sm font-medium text-red-400">${item.netSelling.toLocaleString()}</td>
+  </motion.tr>
+))}
                       </tbody>
                     </table>
-                  </div>
-                  <div className="mt-3 text-right">
-                    <a href="#" className="text-blue-400 hover:text-blue-300 text-xs flex items-center justify-end group">
-                      View Full Report 
-                      <ChevronRightIcon className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                    </a>
                   </div>
                 </motion.div>
               </div>
@@ -509,165 +648,209 @@ const MarketDashboard: React.FC<MarketDataProps> = ({ marketData, topPerformers,
         </Card>
       </motion.div>
 
-      {/* Market Movers and Sector Performance Cards */}
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {/* Market Movers Card */}
-        <motion.div variants={itemVariants} className="col-span-3 md:col-span-2">
-          <Card className="glassmorphism overflow-hidden">
-            <CardHeader className="pb-3 border-b border-gray-800">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-medium flex items-center text-gray-100">
-                  <LineChartIcon className="w-5 h-5 mr-2 text-blue-500" />
-                  Market Movers
-                </CardTitle>
-                <div className="flex items-center space-x-2">
-                  <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
-                    Top Movers
-                  </Badge>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-5">
-              <div className="flex items-center mb-4 relative">
-                <SearchIcon className="w-4 h-4 absolute left-3 text-gray-500" />
+      {/* Stock Lookup and Search */}
+      <motion.div variants={itemVariants}>
+        <Card className="glassmorphism mb-8">
+          <CardHeader className="pb-3 border-b border-gray-800">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-xl font-medium flex items-center text-gray-100">
+                <SearchIcon className="w-5 h-5 mr-2 text-blue-500" />
+                Stock Search
+              </CardTitle>
+              <Badge variant="outline" className="bg-blue-500/10 text-blue-400 border-blue-500/30">
+                {marketData.length} Stocks
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5">
+            <div className="mb-6 relative">
+              <div className="relative">
+                <SearchIcon className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
-                  placeholder="Search by symbol or company name..."
+                  ref={searchInputRef}
                   value={searchTerm}
                   onChange={handleSearch}
-                  className="pl-9 bg-gray-800/40 border-gray-700 focus:border-blue-500 focus:ring-blue-500/20 text-gray-200 text-sm h-9"
+                  className="pl-9 pr-9 py-2 bg-gray-900/70 border-gray-700 focus:border-blue-500/50 focus:ring-blue-500/30"
+                  placeholder="Search by symbol or company name..."
                 />
+                {searchTerm && (
+                  <button 
+                    onClick={clearSearch} 
+                    className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-300"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              <div className="rounded-lg overflow-hidden border border-gray-800">
-                <Table>
-                  <TableHeader className="bg-gray-800/60">
-                    <TableRow className="hover:bg-gray-800/80 border-b-0">
-                      <TableHead className="text-gray-400 font-medium text-xs">Symbol</TableHead>
-                      <TableHead className="text-gray-400 font-medium text-xs">Name</TableHead>
-                      <TableHead className="text-gray-400 font-medium text-xs text-right">Price</TableHead>
-                      <TableHead className="text-gray-400 font-medium text-xs text-right">Change</TableHead>
-                      <TableHead className="text-gray-400 font-medium text-xs text-right">Volume</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <AnimatePresence>
-                      {filteredData.map((stock, index) => (
-                        <motion.tr 
-                          key={stock.symbol} 
-                          className="cursor-pointer hover:bg-gray-800/40 transition border-b border-gray-800/60 group"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          transition={{ duration: 0.3, delay: index * 0.05 }}
-                          whileHover={{ backgroundColor: "rgba(31, 41, 55, 0.4)" }}
+              
+              {/* Stock Suggestions */}
+              <AnimatePresence>
+                {showSuggestions && (
+                  <motion.div 
+                    ref={suggestionsRef}
+                    className="absolute z-10 mt-1 w-full bg-gray-900 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ul className="py-1">
+                      {stockSuggestions.map((suggestion, index) => (
+                        <li 
+                          key={index} 
+                          className={`px-4 py-2 hover:bg-gray-800 cursor-pointer flex justify-between items-center ${
+                            index === highlightedSuggestion ? 'bg-gray-800' : ''
+                          }`}
+                          onClick={() => handleSuggestionSelect(suggestion)}
+                          onMouseEnter={() => setHighlightedSuggestion(index)}
                         >
-                          <TableCell className="font-bold text-blue-500 py-3">{stock.symbol}</TableCell>
-                          <TableCell className="text-gray-200 font-medium py-3">{stock.name}</TableCell>
-                          <TableCell className="text-right font-medium text-gray-200 py-3">${stock.price.toFixed(2)}</TableCell>
-                          <TableCell className="text-right py-3">
-                            <div className={`flex items-center justify-end font-medium ${stock.status === 'up' ? 'text-green-400' : 'text-red-400'}`}>
-                              {stock.status === 'up' ? (
-                                <ArrowUpIcon className="w-3.5 h-3.5 mr-1" />
-                              ) : (
-                                <ArrowDownIcon className="w-3.5 h-3.5 mr-1" />
-                              )}
-                              {stock.change.toFixed(2)} ({stock.percentChange.toFixed(2)}%)
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-blue-400 font-medium py-3">
-                            <div className="flex items-center justify-end">
-                              {stock.volume}
-                              <span className="opacity-0 group-hover:opacity-100 ml-2 transition-opacity">
-                                <ChevronRightIcon className="w-4 h-4 text-blue-500" />
-                              </span>
-                            </div>
-                          </TableCell>
-                        </motion.tr>
+                          <div>
+                            <span className="font-medium text-blue-400 mr-2">{suggestion.Symbol}</span>
+                            <span className="text-sm text-gray-400">{suggestion['Security Name']}</span>
+                          </div>
+                          <ChevronRightIcon className="w-4 h-4 text-gray-600" />
+                        </li>
                       ))}
-                    </AnimatePresence>
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="mt-3 flex justify-end">
-                <a href="#" className="text-blue-400 hover:text-blue-300 text-xs flex items-center group">
-                  View All Market Data
-                  <ChevronRightIcon className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                </a>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                      {stockSuggestions.length === 0 && (
+                        <li className="px-4 py-2 text-gray-500 text-sm">No results found</li>
+                      )}
+                    </ul>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-        {/* Sector Performance */}
-        <motion.div 
-          variants={itemVariants}
-          className="glassmorphism rounded-lg col-span-3 md:col-span-1 overflow-hidden"
-        >
-          <Card className="bg-transparent border-none">
-            <CardHeader className="pb-3 border-b border-gray-800">
+            <motion.div 
+              className="overflow-x-auto"
+              variants={fadeInUp}
+            >
+              <Table>
+                <TableHeader className="bg-gray-900/50">
+                  <TableRow className="hover:bg-gray-800/50 border-gray-800">
+                    <TableHead className="text-gray-400 font-medium">Symbol</TableHead>
+                    <TableHead className="text-gray-400 font-medium">Company</TableHead>
+                    <TableHead className="text-gray-400 font-medium text-right">Price</TableHead>
+                    <TableHead className="text-gray-400 font-medium text-right">Change</TableHead>
+                    <TableHead className="text-gray-400 font-medium text-right">% Change</TableHead>
+                    <TableHead className="text-gray-400 font-medium text-right">Volume</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredData.map((item, index) => (
+                    <TableRow 
+                      key={index} 
+                      className="hover:bg-gray-800/50 border-gray-800 cursor-pointer"
+                    >
+                      <TableCell className="font-semibold text-blue-500">{item.symbol}</TableCell>
+                      <TableCell className="text-gray-300">{item.name}</TableCell>
+                      <TableCell className="text-right text-gray-300">${item.price.toFixed(2)}</TableCell>
+                      <TableCell className={`text-right ${item.change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        <div className="flex items-center justify-end">
+                          {item.change >= 0 ? 
+                            <ArrowUpIcon className="w-3 h-3 mr-1" /> : 
+                            <ArrowDownIcon className="w-3 h-3 mr-1" />
+                          }
+                          {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}
+                        </div>
+                      </TableCell>
+                      <TableCell className={`text-right ${item.percentChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {item.percentChange >= 0 ? '+' : ''}{item.percentChange.toFixed(2)}%
+                      </TableCell>
+                      <TableCell className="text-right text-gray-300">{item.volume}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredData.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-6 text-gray-500">
+                        {isLoading ? (
+                          <div className="flex items-center justify-center">
+                            <div className="w-5 h-5 border-2 border-t-blue-500 border-gray-700 rounded-full animate-spin mr-2"></div>
+                            Loading stocks...
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center">
+                            <AlertCircleIcon className="w-6 h-6 mb-2 text-gray-500" />
+                            No stocks found matching "{searchTerm}"
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </motion.div>
+            {filteredData.length > 0 && (
+              <div className="mt-4 text-xs text-gray-500 text-right">
+                Showing {filteredData.length} of {marketData.length} stocks
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Top Performers */}
+      <motion.div variants={itemVariants}>
+        <Card className="glassmorphism mb-8">
+          <CardHeader className="pb-3 border-b border-gray-800">
+            <div className="flex justify-between items-center">
               <CardTitle className="text-xl font-medium flex items-center text-gray-100">
-                <BarChart3 className="w-5 h-5 mr-2 text-blue-500" />
-                Top Sectors
+                <TrendingUpIcon className="w-5 h-5 mr-2 text-blue-500" />
+                Top Performers
               </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5">
-              {topPerformers.map((sector, i) => (
-                <motion.div 
-                  key={i} 
-                  className="flex justify-between items-center p-3 mb-2.5 bg-gray-800/40 rounded-lg hover:bg-gray-700/40 transition cursor-pointer hover-lift"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay: 0.1 + (i * 0.1) }}
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <span className="font-medium text-gray-200">{sector.name}</span>
-                  <span className="text-green-400 font-medium flex items-center">
-                    <ArrowUpIcon className="w-3.5 h-3.5 mr-1" />
-                    {sector.change}%
-                  </span>
+              <Button variant="outline" size="sm" className="bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20">
+                View All
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {topPerformers.map((performer, index) => (
+               <motion.div 
+               key={index}
+               className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover-lift"
+               whileHover={{ scale: 1.005 }}
+               initial={{ opacity: 0, y: 10 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ 
+                 duration: 0.2,
+                 delay: index * 0.1 
+               }}
+             >
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-medium text-gray-200">{performer.name}</h3>
+                    <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                      <span className="flex items-center">
+                        <TrendingUpIcon className="w-3 h-3 mr-1" />
+                        +{performer.change.toFixed(2)}%
+                      </span>
+                    </Badge>
+                  </div>
+                  <div className="h-10 w-full relative">
+                    <div className="absolute inset-0">
+                      <svg width="100%" height="100%" viewBox="0 0 100 30">
+                        <path 
+                          d="M0,15 C10,13 20,8 30,15 C40,22 50,25 60,20 C70,15 80,10 90,5 L100,0" 
+                          stroke="#10b981" 
+                          strokeWidth="1.5"
+                          fill="none"
+                        />
+                      </svg>
+                    </div>
+                  </div>
                 </motion.div>
               ))}
-              <motion.div 
-                className="mt-5 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg hover:bg-blue-500/15 transition cursor-pointer"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.6 }}
-                whileHover={{ scale: 1.01 }}
-              >
-                <div className="flex items-start">
-                  <AlertCircleIcon className="w-4 h-4 text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-gray-300 leading-relaxed">
-                    Markets are showing positive momentum across technology sectors as Q4 earnings exceed expectations. Recent Fed comments indicate stabilizing rates.
-                  </p>
-                </div>
-              </motion.div>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <motion.button 
-                  className="flex items-center justify-center py-2 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/30 text-blue-400 text-xs font-medium transition"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.7 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <TrendingUpIcon className="w-3.5 h-3.5 mr-1.5" />
-                  Gainers
-                </motion.button>
-                <motion.button 
-                  className="flex items-center justify-center py-2 rounded-lg bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700 text-gray-400 text-xs font-medium transition"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.8 }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <TrendingDown className="w-3.5 h-3.5 mr-1.5" />
-                  Losers
-                </motion.button>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Footer Message */}
+      <motion.div 
+        variants={fadeInUp}
+        className="text-center text-gray-500 text-sm mb-8"
+      >
+        <p>Data refreshes automatically every 5 minutes. Last update: Just now</p>
+      </motion.div>
     </motion.div>
   );
 };

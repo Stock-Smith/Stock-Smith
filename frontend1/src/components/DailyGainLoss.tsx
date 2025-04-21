@@ -263,6 +263,8 @@ const DailyGainLoss: React.FC<DailyGainLossProps> = ({ userId, stockData, priceD
   const hasProfit = unrealizedData.highestProfit && unrealizedData.highestProfit.length > 0;
   const hasLoss = unrealizedData.highestLoss && unrealizedData.highestLoss.length > 0;
 
+  
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
       {/* Today's Gain */}

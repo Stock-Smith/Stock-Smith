@@ -36,14 +36,20 @@ class KafkaConsumer {
         });
     }
 
-    async run() {
-        // await this.consumer.run(handler);
+    // async run() {
+    //     // await this.consumer.run(handler);
+    //     await this.consumer.run({
+    //         eachMessage: async ({topic, partition, message}) => {
+    //             // Modify the console log to pring everythinh in order to see the message value include partition and topic and message value
+    //             console.log(`Received message ${message.value} at: ${topic}:${partition}`);
+    //         }
+    //     })
+    // }
+
+    async run(handler) {
         await this.consumer.run({
-            eachMessage: async ({topic, partition, message}) => {
-                // Modify the console log to pring everythinh in order to see the message value include partition and topic and message value
-                console.log(`Received message ${message.value} at: ${topic}:${partition}`);
-            }
-        })
+            eachMessage: handler
+        });
     }
 
     async disconnect() {

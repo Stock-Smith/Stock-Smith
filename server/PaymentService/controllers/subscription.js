@@ -57,6 +57,15 @@ const createOrder = async (req, res) => {
   if (!subscriptionPlan) {
     throw new BadRequestError("Invalid Subcription Plan ID");
   }
+
+  if(subscriptionPlan.isActive === false) {
+    throw new BadRequestError("Subscription Plan is not active");
+  }
+
+  if(subscriptionPlan.type !== "premium") {
+    throw new BadRequestError("Invalid Subscription Plan Type");
+  }
+
   const amount = subscriptionPlan.price.amount * 100;
   const currency = subscriptionPlan.price.currency;
   const options = {
@@ -108,10 +117,6 @@ const verifyPayment = async (req, res) => {
     const isAuthentic = expectedSignature === razorpay_signature;
 
     if (isAuthentic) {
-      // Payment is verified - update your database here
-      console.log("Payment verified successfully");
-
-      // Update payment status in the database
       const payment = await Payment.findOne({ orderId: razorpay_order_id });
       if (!payment) {
         return res.status(StatusCodes.NOT_FOUND).json({
@@ -123,6 +128,19 @@ const verifyPayment = async (req, res) => {
       payment.status = "success";
       await payment.save();
       console.log("Payment updated in database:", payment);
+      const subscriptionPlan = await SubscriptionPlan.findById(
+        payment.planId
+      );
+      if (!subscriptionPlan) {
+        return res.status(StatusCodes.NOT_FOUND).json({
+          success: false,
+          message: "Subscription plan not found",
+        });
+      }
+      const validityPeriod = subscriptionPlan.price.billingCycle === "monthly" ? 30 : 365;
+      const currentDate = new Date();
+      const endDate = new Date(currentDate);
+      endDate.setDate(currentDate.getDate() + validityPeriod);
       // Send message to Kafka
 
       await KafkaProducer.connect();
@@ -130,7 +148,13 @@ const verifyPayment = async (req, res) => {
         userId: req.headers["x-user-id"],
         paymentId: payment._id,
         status: "success",
+        startDate: currentDate,
+        endDate: endDate,
+        subscriptionPlanId: subscriptionPlan._id,
+        subscriptionPlanType: subscriptionPlan.type,
       };
+      console.log(`Kafka Message ${message}`);
+      
       await KafkaProducer.sendMessage(config.kafkaPaymentTopic, message);
 
       return res.status(StatusCodes.OK).json({

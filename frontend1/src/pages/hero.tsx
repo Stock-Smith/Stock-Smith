@@ -3,13 +3,10 @@ import { motion } from 'framer-motion';
 import { TypeAnimation } from 'react-type-animation';
 import { LineChartIcon, TrendingUpIcon, EyeIcon, LogInIcon, UserPlusIcon, ChevronDownIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { useAuthStore } from "../context/AuthContext";
 
 interface HeroProps {
-  isAuthenticated: boolean;
-  user?: {
-    name: string;
-  };
-  onScrollClick?: () => void; // Add a callback function for scroll click
+  onScrollClick?: () => void; // Only keep the scroll callback
 }
 
 const fadeIn = {
@@ -45,10 +42,11 @@ const bounceAnimation = {
   }
 };
 
-const HeroSection: React.FC<HeroProps> = ({ isAuthenticated, user, onScrollClick }) => {
-  // Reference to the hero section
+const HeroSection: React.FC<HeroProps> = ({ onScrollClick }) => {
+  const { isAuthenticated, user } = useAuthStore(); // Add this line
+  
+  // Rest of the component remains the same
   const heroRef = useRef<HTMLDivElement>(null);
-
   // Function to scroll to the next section
   const scrollToNextSection = () => {
     if (onScrollClick) {
@@ -134,10 +132,6 @@ const HeroSection: React.FC<HeroProps> = ({ isAuthenticated, user, onScrollClick
               </div>
               <div className="text-xl font-semibold text-white">
                 {user.name}
-              </div>
-              <div className="mt-1 text-green-400 font-medium flex items-center">
-                <TrendingUpIcon className="h-4 w-4 mr-1" />
-                +2.4% today
               </div>
             </motion.div>
           )}

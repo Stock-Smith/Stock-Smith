@@ -12,6 +12,8 @@ interface AssetsSummaryProps {
     realizedGain: number;
     capitalGain: number;
     otherGain: number;
+    beta : number;
+    
   };
 }
 

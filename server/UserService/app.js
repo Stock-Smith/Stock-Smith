@@ -14,6 +14,7 @@ const notFoundMiddleware = require('./middleware/not-found');
 
 // routers
 const authRouter = require('./routes/auth');
+const watchlistRouter = require('./routes/watchlist');
 
 const app = express();
 
@@ -40,6 +41,7 @@ const corsOptions = {
 
 
 app.use('/api/v1/auth/', authRouter);
+app.use('/api/v1/user/', watchlistRouter);
 
 app.use(errorHandlerMiddleware);
 app.use(notFoundMiddleware);
