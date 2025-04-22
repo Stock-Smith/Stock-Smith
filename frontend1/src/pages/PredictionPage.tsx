@@ -81,34 +81,33 @@ const StockPredictionPage = ({ ticker = 'AAPL' }: { ticker?: string }) => {
       }
       
       // Mock data for demonstration
-      setTimeout(() => {
-        const mockData = {
-          predictions: [
-            latestPrice * 1.01, 
-            latestPrice * 1.02, 
-            latestPrice * 1.015, 
-            latestPrice * 1.025, 
-            latestPrice * 1.03
-          ],
-          dates: ["2025-04-16", "2025-04-17", "2025-04-18", "2025-04-19", "2025-04-20"],
-        };
-        setPredictionData(mockData);
-        toast.success("Prediction Generated", {
-          description: "Stock price predictions have been updated.",
-        });
-        setLoading(false);
-      }, 1500);
+      // setTimeout(() => {
+      //   const mockData = {
+      //     predictions: [
+      //       latestPrice * 1.01, 
+      //       latestPrice * 1.02, 
+      //       latestPrice * 1.015, 
+      //       latestPrice * 1.025, 
+      //       latestPrice * 1.03
+      //     ],
+      //     dates: ["2025-04-16", "2025-04-17", "2025-04-18", "2025-04-19", "2025-04-20"],
+      //   };
+      //   setPredictionData(mockData);
+      //   toast.success("Prediction Generated", {
+      //     description: "Stock price predictions have been updated.",
+      //   });
+      //   setLoading(false);
+      // }, 1500);
 
       // Uncomment for real API call
-      /*
-      const response = await fetch(`http://127.0.0.1:8000/api/prediction_price?ticker=${localTicker}`);
+      
+      const response = await fetch(`http://127.0.0.1:8007/api/prediction_price?ticker=${localTicker}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch prediction data');
       }
       const data = await response.json();
       setPredictionData(data);
-      */
     } catch (error) {
       toast.error("Error", {
         description: error instanceof Error ? error.message : "An unknown error occurred",

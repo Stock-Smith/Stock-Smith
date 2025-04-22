@@ -19,7 +19,7 @@ class PredictionPriceView(APIView):
                 print("Cache hit")
                 return JsonResponse(cached_result, safe=True)
             # Get the prediction result (NumPy array and DatetimeIndex)
-            predictions, dates = predict(ticker)
+            predictions, dates, mape_values = predict(ticker)
             
             # Convert the NumPy array to a Python list
             predictions_list = predictions.tolist()
@@ -30,7 +30,8 @@ class PredictionPriceView(APIView):
             # Create a properly formatted, serializable response
             result = {
                 "predictions": predictions_list,
-                "dates": dates_list
+                "dates": dates_list,
+                "mape_values": min(mape_values) * 100
             }
             # Cache the result for future requests for 1 day
             print("Cache miss")

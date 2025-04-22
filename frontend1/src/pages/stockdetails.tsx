@@ -63,7 +63,7 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
 
       try {
         // Fetch stock details
-        const response = await fetch(`http://localhost:8003/api/v1/stock/details?ticker=${ticker}`);
+        const response = await fetch(`http://localhost:8006/api/v1/stock/details?ticker=${ticker}`);
 
         if (!response.ok) {
           throw new Error(`Failed to fetch data for ${ticker}`);
