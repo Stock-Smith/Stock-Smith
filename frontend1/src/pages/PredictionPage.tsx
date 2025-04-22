@@ -9,7 +9,9 @@ import StockDetailPage from "./stockdetails";
 interface PredictionData {
   predictions: number[];
   dates: string[];
+  mape_values: number;
 }
+
 
 const StockPredictionPage = ({ ticker = 'AAPL' }: { ticker?: string }) => {
   const [localTicker, setLocalTicker] = useState<string>(ticker);
@@ -251,7 +253,18 @@ const StockPredictionPage = ({ ticker = 'AAPL' }: { ticker?: string }) => {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
+                  {predictionData && predictionData.mape_values !== undefined && (
+                  <div className="mt-2 flex items-center justify-end">
+                    <div className="text-sm text-gray-400 bg-[#030305] px-3 py-1 rounded-md border border-[#1a1a2e]">
+                      <span className="font-medium text-blue-400">MAPE:</span> {predictionData.mape_values.toFixed(2)}%
+                      <span className="ml-1 text-xs text-gray-500 cursor-help" title="Mean Absolute Percentage Error - lower values indicate better prediction accuracy">
+                        <Info className="inline h-3 w-3" />
+                      </span>
+                    </div>
                   </div>
+                )}
+              </div>
+          
 
                   {/* Table in right 1/3 */}
                   <div className="lg:col-span-1">
