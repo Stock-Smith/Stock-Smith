@@ -3,6 +3,7 @@ const { UnauthenticatedError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 
 class WatchlistController {
+  
   async createWatchList(req, res) {
     const { name, description, stocksSymbols } = req.body;
     const userID = req.headers["x-user-id"];

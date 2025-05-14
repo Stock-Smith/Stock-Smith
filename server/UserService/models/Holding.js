@@ -34,10 +34,6 @@ const HoldingSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
       },
-      performanceMetrics: {
-        returnPercentage: Number,
-        profitLoss: Number,
-      }
     },
   ],
 }, {timestamps: true});
