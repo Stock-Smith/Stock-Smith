@@ -2,8 +2,25 @@ const Watchlist = require("../models/Watchlist");
 const { UnauthenticatedError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 
+/**
+ * Controller class for managing user watchlists
+ * Provides functionality to create, read, update, and delete watchlists and their stocks
+ */
 class WatchlistController {
   
+  /**
+   * Creates a new watchlist for a user
+   * @param {Object} req - Express request object
+   * @param {Object} req.body - Request body containing watchlist data
+   * @param {string} req.body.name - Name of the watchlist (required)
+   * @param {string} [req.body.description] - Description of the watchlist
+   * @param {Array<string>} [req.body.stocksSymbols] - Array of stock symbols to add to the watchlist
+   * @param {Object} req.headers - Request headers
+   * @param {string} req.headers.x-user-id - User ID from authentication middleware
+   * @param {Object} res - Express response object
+   * @returns {Object} Response with status and message
+   * @throws {UnauthenticatedError} If user is not authenticated
+   */
   async createWatchList(req, res) {
     const { name, description, stocksSymbols } = req.body;
     const userID = req.headers["x-user-id"];
@@ -38,6 +55,18 @@ class WatchlistController {
       .json({ message: "Watchlist created successfully" });
   }
 
+  /**
+   * Adds stocks to an existing watchlist
+   * @param {Object} req - Express request object
+   * @param {Object} req.body - Request body containing data
+   * @param {string} req.body.watchlistId - ID of the watchlist to add stocks to
+   * @param {Array<string>} req.body.stocksSymbols - Array of stock symbols to add
+   * @param {Object} req.headers - Request headers
+   * @param {string} req.headers.x-user-id - User ID from authentication middleware
+   * @param {Object} res - Express response object
+   * @returns {Object} Response with status and message
+   * @throws {UnauthenticatedError} If user is not authenticated
+   */
   async addToWatchList(req, res) {
     const { watchlistId, stocksSymbols } = req.body;
     const userID = req.headers["x-user-id"];
@@ -100,6 +129,15 @@ class WatchlistController {
       .json({ message: "Stocks added to watchlist successfully" });
   }
 
+  /**
+   * Retrieves all watchlists belonging to a user
+   * @param {Object} req - Express request object
+   * @param {Object} req.headers - Request headers
+   * @param {string} req.headers.x-user-id - User ID from authentication middleware
+   * @param {Object} res - Express response object
+   * @returns {Object} Response with status and watchlists data
+   * @throws {UnauthenticatedError} If user is not authenticated
+   */
   async getWatchlists(req, res) {
     const userID = req.headers["x-user-id"];
     if (!userID) {
@@ -115,6 +153,17 @@ class WatchlistController {
     res.status(StatusCodes.OK).json({ watchlists });
   }
 
+  /**
+   * Deletes a watchlist by ID
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Request query parameters
+   * @param {string} req.query.watchlistID - ID of the watchlist to delete
+   * @param {Object} req.headers - Request headers
+   * @param {string} req.headers.x-user-id - User ID from authentication middleware
+   * @param {Object} res - Express response object
+   * @returns {Object} Response with status and message
+   * @throws {UnauthenticatedError} If user is not authenticated
+   */
   async deleteWatchlist(req, res) {
     const { watchlistID } = req.query;
     const userID = req.headers["x-user-id"];
@@ -144,6 +193,18 @@ class WatchlistController {
       .json({ message: "Watchlist deleted successfully" });
   }
 
+  /**
+   * Removes a stock from a watchlist
+   * @param {Object} req - Express request object
+   * @param {Object} req.query - Request query parameters
+   * @param {string} req.query.watchlistID - ID of the watchlist
+   * @param {string} req.query.stockSymbol - Symbol of the stock to remove
+   * @param {Object} req.headers - Request headers
+   * @param {string} req.headers.x-user-id - User ID from authentication middleware
+   * @param {Object} res - Express response object
+   * @returns {Object} Response with status and message
+   * @throws {UnauthenticatedError} If user is not authenticated
+   */
   async deleteStockFromWatchlist(req, res) {
     const { watchlistID, stockSymbol } = req.query;
     const userID = req.headers["x-user-id"];

@@ -1,7 +1,20 @@
+/**
+ * @fileoverview KafkaConsumer class for handling Kafka message consumption
+ * This module provides a wrapper around the kafkajs library to simplify
+ * Kafka consumer operations within the UserService.
+ */
 const {Kafka} = require('kafkajs');
 const config = require('../config/env');
 
+/**
+ * KafkaConsumer class for consuming messages from Kafka topics
+ * @class
+ */
 class KafkaConsumer {
+    /**
+     * Creates a new KafkaConsumer instance
+     * @param {string} groupId - The consumer group ID for this consumer
+     */
     constructor(groupId) {
         console.log(`Is Array: ${Array.isArray(config.kafkaBrokers)}`);
         console.log(`Kafka Brokers: ${config.kafkaBrokers}`);
@@ -17,6 +30,12 @@ class KafkaConsumer {
         console.log(`Kafka consumer created with group ID: ${groupId}`);
     }
 
+    /**
+     * Establishes a connection to the Kafka broker
+     * @async
+     * @returns {Promise<void>}
+     * @throws {Error} If connection fails
+     */
     async connect() {
         try {
             console.log('Connecting to Kafka broker...');
@@ -29,6 +48,12 @@ class KafkaConsumer {
         }
     }
 
+    /**
+     * Subscribes the consumer to a Kafka topic
+     * @async
+     * @param {string} topic - The Kafka topic to subscribe to
+     * @returns {Promise<void>}
+     */
     async subscribe(topic) {
         this.consumer.subscribe({
             topic: topic,
@@ -46,12 +71,25 @@ class KafkaConsumer {
     //     })
     // }
 
+    /**
+     * Starts consuming messages from subscribed topics
+     * @async
+     * @param {Function} handler - Callback function to process each message
+     *                             Expected signature: async ({topic, partition, message}) => {}
+     * @returns {Promise<void>}
+     */
     async run(handler) {
         await this.consumer.run({
             eachMessage: handler
         });
     }
 
+    /**
+     * Disconnects the consumer from the Kafka broker
+     * @async
+     * @returns {Promise<void>}
+     * @throws {Error} If disconnection fails
+     */
     async disconnect() {
         try {
             await this.consumer.disconnect();
