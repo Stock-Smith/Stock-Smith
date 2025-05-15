@@ -10,6 +10,13 @@ const { createTokenForUser } = require("../utils/authentication");
 const sendMail = require("../utils/sendMail");
 const { BadRequestError, UnauthenticatedError } = require("../errors");
 
+/**
+ * Register a new user
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body containing user information
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with user information
+ */
 const register = async (req, res) => {
   const user = await User.create({ ...req.body });
   res
@@ -41,6 +48,13 @@ const register = async (req, res) => {
 //     .json({ user: { name: user.name, email: user.email }, token });
 // };
 
+/**
+ * User login handler for passport authentication
+ * @param {Object} req - Express request object with authenticated user
+ * @param {Object} req.user - User object from passport authentication
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with user information
+ */
 const login = async (req, res) => {
   const user = req.user;
   res.status(StatusCodes.OK).json({
@@ -52,6 +66,14 @@ const login = async (req, res) => {
   });
 };
 
+/**
+ * Check if user is authenticated
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object if authenticated
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with user information if authenticated
+ * @throws {UnauthenticatedError} If user is not authenticated
+ */
 const authStatus = async (req, res) => {
   if (req.user) {
     const user = req.user;
@@ -67,6 +89,14 @@ const authStatus = async (req, res) => {
   }
 };
 
+/**
+ * Logout current user
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object if authenticated
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response confirming logout
+ * @throws {UnauthenticatedError} If user is not authenticated
+ */
 const logout = async (req, res) => {
   if (!req.user) {
     throw new UnauthenticatedError("User not authenticated");
@@ -82,6 +112,14 @@ const logout = async (req, res) => {
   });
 };
 
+/**
+ * Setup Multi-Factor Authentication for a user
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - Authenticated user object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with QR code for MFA setup
+ * @throws {BadRequestError} If MFA is already active
+ */
 const setupMfa = async (req, res) => {
   const user = req.user;
 
@@ -131,6 +169,16 @@ const setupMfa = async (req, res) => {
   res.status(StatusCodes.OK).json({ qrCode: qrImageURL });
 };
 
+/**
+ * Verify MFA token provided by user
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body containing token
+ * @param {String} req.body.token - MFA token to verify
+ * @param {Object} req.user - Authenticated user object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response with JWT token if verified
+ * @throws {BadRequestError} If token is missing or incorrect
+ */
 const verifyMfa = async (req, res) => {
   const { token } = req.body;
   const user = req.user;
@@ -159,6 +207,13 @@ const verifyMfa = async (req, res) => {
     .json({ user: { name: user.name, email: user.email }, token: jwtToken });
 };
 
+/**
+ * Reset MFA for a user
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - Authenticated user object
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response confirming MFA reset
+ */
 const resetMfa = async (req, res) => {
   const user = req.user;
 
@@ -170,6 +225,15 @@ const resetMfa = async (req, res) => {
   res.status(StatusCodes.OK).json({ message: "MFA reset successfully" });
 };
 
+/**
+ * Handle forgot password request
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {String} req.body.email - User email
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response confirming email sent
+ * @throws {BadRequestError} If user not found
+ */
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
@@ -189,6 +253,17 @@ const forgotPassword = async (req, res) => {
   res.status(StatusCodes.OK).json({ message: "Email sent" });
 }
 
+/**
+ * Reset user password with valid token
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {String} req.params.resetToken - Password reset token
+ * @param {Object} req.body - Request body
+ * @param {String} req.body.password - New password
+ * @param {Object} res - Express response object
+ * @returns {Object} JSON response confirming password reset
+ * @throws {BadRequestError} If token is invalid or expired
+ */
 const resetPassword = async(req, res) => {
   const { resetToken } = req.params;
   const { password } = req.body;
