@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams, useParams } from "react-router-dom";
+import { useEffect } from "react";
 import { useAuthStore } from "./context/AuthContext";
 import Home from "./pages/home1";
 import Portfolio from "./pages/Portfolio";
@@ -27,7 +28,15 @@ const StockPredictionWrapper = () => {
 };
 
 const App = () => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isLoading, verifyAuth } = useAuthStore();
+  
+  useEffect(() => {
+    verifyAuth();
+  }, [verifyAuth]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
   
   return (
     <Router>
@@ -36,6 +45,7 @@ const App = () => {
         <div className="flex-grow">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
             <Route path="/login" element={<AuthForm type="login" />} />
             <Route path="/register" element={<AuthForm type="signup" />} />
             <Route path="/auth" element={<AuthWrapper />} />
@@ -43,7 +53,6 @@ const App = () => {
               path="/portfolio" 
               element={isAuthenticated ? <Portfolio /> : <Navigate to="/auth?type=login" />} 
             />
-            {/* Note: There was a duplicate watchlist route in your code */}
             <Route 
               path="/watchlist" 
               element={isAuthenticated ? <Watchlist /> : <Navigate to="/auth?type=login" />} 
