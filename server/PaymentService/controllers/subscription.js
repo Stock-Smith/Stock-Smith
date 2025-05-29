@@ -10,6 +10,7 @@ const Payment = require("../models/Payment");
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 
 const config = require("../config/env");
+const { log } = require("console");
 
 const razorpayInstance = new Razorpay({
   key_id: config.razorpayKeyID,
@@ -17,6 +18,10 @@ const razorpayInstance = new Razorpay({
 });
 
 const fetchPlans = async (req, res) => {
+  console.log("USer ID:", req.headers["x-user-id"]);
+  console.log("Email", req.headers["x-user-name"]);
+  
+  
   const plans = await SubscriptionPlan.find({ isActive: true });
   console.log(plans);
   res.status(StatusCodes.OK).json({

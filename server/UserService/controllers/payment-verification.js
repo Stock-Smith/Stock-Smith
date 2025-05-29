@@ -6,6 +6,7 @@
 const KafkaConsumer = require("../services/KafkaConsumer");
 const config = require("../config/env");
 const UserSubscription = require("../models/UserSubscription");
+const KafkaProducer = require("../services/KafkaProducer");
 
 /**
  * Controller class for payment verification processing
@@ -61,7 +62,19 @@ class PaymentVerificationController {
       }
     });
     await userSubcription.save();
-    console.log("User subscription saved successfully:", userSubcription);
+    console.log("User id ---------------------------------------------------------------------------------", userId);
+    
+    await KafkaProducer.connect();
+    const messageToSend = {
+      userId,
+      subscriptionPlanId,
+      startDate,
+      endDate,
+      subscriptionPlanType,
+    }
+    await KafkaProducer.sendMessage(config.kafkaPredictionTopic, messageToSend);
+    console.log(`Message sent to topic ${config.kafkaPredictionTopic}: ${JSON.stringify(messageToSend)}`);
+    // console.log("User subscription saved successfully:", userSubscription);
   }
 }
 

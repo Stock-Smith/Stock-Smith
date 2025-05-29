@@ -3,8 +3,20 @@ from django.core.cache import cache
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.conf import settings
 
+from mongoengine import connect
+
+from .models import UserPrediction
 from .ml_model.PredictSuperCode import predict
+
+from .kafka_producer import send_to_kafka
+
+
+# Connect to MongoDB
+# connect(
+#     host=settings.CONNECTION_STRING,
+# )
 
 class PredictionPriceView(APIView):
     def get(self, request):
@@ -42,3 +54,34 @@ class PredictionPriceView(APIView):
             print(f"Error occurred: {e}")
             return Response({"error": f"An error occurred while processing the request: {str(e)}"}, 
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class TestView(APIView):
+    def get(self, request):
+        user_id = request.query_params.get('user_id', None)
+        if user_id is None:
+            return Response({"error": "User ID parameter is required"}, status=status.HTTP_400_BAD_REQUEST)
+        temp = UserPrediction.objects(user_id=user_id).first()
+        print(temp)
+
+        return JsonResponse({"message": "Test successful", "user_id": user_id})
+
+class UserPredictionView(APIView):
+    def post(self, request):
+        try:
+            data = request.data
+            user_id = data.get('user_id')
+            ticker = data.get('ticker')
+
+            if not user_id or not ticker:
+                return Response({"error": "user_id and ticker are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            kafka_data = {
+                "user_id": user_id,
+                "ticker": ticker
+            }
+            # Send data to Kafka
+            send_to_kafka('user_predictions', kafka_data)
+            return Response({"message": "Data sent to Kafka successfully"}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

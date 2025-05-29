@@ -14,12 +14,27 @@ from pathlib import Path
 import os
 from pymongo import MongoClient
 from dotenv import load_dotenv
+from mongoengine import connect
 # Load environment variables from .env file
 load_dotenv('.env')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# MongoDB Connection
+CONNECTION_STRING = os.getenv('MONGO_DB_ATLAS_URI')
+if not CONNECTION_STRING:
+    raise ValueError("MONGO_DB_ATLAS_URI environment variable is not set")
+
+# Connect to MongoDB using mongoengine
+connect(host=CONNECTION_STRING)
+
+# PyMongo client for direct database access if needed
+MONGO_CLIENT = MongoClient(CONNECTION_STRING)
+
+KAFKA_PREDICTION_TOPIC = os.getenv('KAFKA_PREDICTION_TOPIC')
+KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
+KAFKA_CONSUMER_GROUP_ID = os.getenv('KAFKA_CONSUMER_GROUP_ID')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -132,11 +147,6 @@ STATIC_URL = 'static/'
 CORS_ALLOW_ALL_ORIGINS = True
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
-
-CONNECTION_STRING = os.getenv('MONGO_DB_ATLAS_URI')
-MONGO_CLIENT = MongoClient(CONNECTION_STRING)
-
-
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

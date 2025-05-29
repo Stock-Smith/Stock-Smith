@@ -17,6 +17,11 @@ const auth = async (req, res, next) => {
         res.setHeader('X-User-Id', payload._id);
         res.setHeader('X-User-Name', payload.name);
         res.setHeader('X-User-Email', payload.email);
+        console.log("ID", payload._id);
+        console.log("Name", payload.name);
+        console.log("Email", payload.email);
+        console.log("User authenticated successfully");
+        console.log("Headers set:", res.getHeaders());
         next();
     } catch (error) {
         throw new UnauthenticatedError('Authentication invalid');

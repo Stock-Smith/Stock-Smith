@@ -16,5 +16,6 @@ module.exports = {
     kafkaBrokers: isProduction
         ? process.env.KAFKA_BROKERS_PROD
         : process.env.KAFKA_BROKERS_DEV,
-    kafkaPaymentTopic: process.env.KAFKA_PAYMENT_TOPIC
+    kafkaPaymentTopic: process.env.KAFKA_PAYMENT_TOPIC,
+    kafkaPredictionTopic: process.env.KAFKA_PREDICTION_TOPIC
 }
