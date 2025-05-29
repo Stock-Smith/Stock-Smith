@@ -4,9 +4,10 @@ import { TypeAnimation } from 'react-type-animation';
 import { LineChartIcon, TrendingUpIcon, EyeIcon, LogInIcon, UserPlusIcon, ChevronDownIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuthStore } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface HeroProps {
-  onScrollClick?: () => void; // Only keep the scroll callback
+  onScrollClick?: () => void;
 }
 
 const fadeIn = {
@@ -30,7 +31,6 @@ const staggerContainer = {
   }
 };
 
-// Animation for the bouncing arrow
 const bounceAnimation = {
   y: [0, -10, 0],
   transition: {
@@ -43,31 +43,46 @@ const bounceAnimation = {
 };
 
 const HeroSection: React.FC<HeroProps> = ({ onScrollClick }) => {
-  const { isAuthenticated, user } = useAuthStore(); // Add this line
-  
-  // Rest of the component remains the same
+  const { isAuthenticated, user } = useAuthStore();
+  const navigate = useNavigate();
   const heroRef = useRef<HTMLDivElement>(null);
-  // Function to scroll to the next section
-  const scrollToNextSection = () => {
-    if (onScrollClick) {
-      // Use the provided callback if available
-      onScrollClick();
-    } else {
-      // Default behavior: scroll to the height of the hero section
-      const heroHeight = heroRef.current?.offsetHeight || 0;
-      window.scrollTo({
-        top: heroHeight,
-        behavior: 'smooth'
-      });
-    }
+
+  const handleSignUp = () => {
+    navigate('/register');
   };
+
+  const handleSignIn = () => {
+    navigate('/login');
+  };
+
+  const handlePortfolio = () => {
+    navigate('/portfolio');
+  };
+
+  const handleWatchlist = () => {
+    navigate('/watchlist');
+  };
+
+// Replace your existing scrollToNextSection function with this:
+const scrollToNextSection = () => {
+  if (onScrollClick) {
+    onScrollClick();
+  } else {
+    // Simple fallback: scroll by viewport height
+    window.scrollTo({
+      top: window.innerHeight,
+      behavior: 'smooth'
+    });
+  }
+};
+
+
 
   return (
     <div 
       ref={heroRef}
       className="relative min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8"
     >
-      {/* Decorative elements */}
       <div className="max-w-7xl mx-auto text-center">
         <motion.div
           variants={staggerContainer}
@@ -96,22 +111,22 @@ const HeroSection: React.FC<HeroProps> = ({ onScrollClick }) => {
           <motion.div variants={fadeIn} className="flex flex-wrap justify-center gap-4 mt-8">
             {!isAuthenticated ? (
               <>
-                <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700" onClick={handleSignUp}>
                   <UserPlusIcon className="mr-2 h-5 w-5" />
                   Sign Up
                 </Button>
-                <Button size="lg" variant="outline" className="border-blue-400 text-blue-100">
+                <Button size="lg" variant="outline" className="border-blue-400 text-blue-700" onClick={handleSignIn}>
                   <LogInIcon className="mr-2 h-5 w-5" />
                   Sign In
                 </Button>
               </>
             ) : (
               <>
-                <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700" onClick={handlePortfolio}>
                   <LineChartIcon className="mr-2 h-5 w-5" />
                   Analyze Portfolio
                 </Button>
-                <Button size="lg" variant="outline" className="border-blue-400 text-blue-700">
+                <Button size="lg" variant="outline" className="border-blue-400 text-blue-700" onClick={handleWatchlist}>
                   <EyeIcon className="mr-2 h-5 w-5" />
                   Explore Watchlist
                 </Button>

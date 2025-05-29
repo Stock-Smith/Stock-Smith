@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import HeroSection from "./hero";
 import MarketDashboard from "./MarketDashboard";
@@ -104,6 +104,17 @@ const Home = () => {
   
   // State for dynamic background elements
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const marketDashboardRef = useRef<HTMLDivElement>(null);
+
+  // Add scroll handler function
+  const handleScrollToMarketDashboard = () => {
+    if (marketDashboardRef.current) {
+      marketDashboardRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+  };
   
   // Track mouse position for parallax effect
   useEffect(() => {
@@ -297,24 +308,17 @@ const Home = () => {
       {/* Content */}
       <div className="relative z-10">
         {/* Hero Section */}
-        <HeroSection 
-  onScrollClick={() => {
-    // Use a class or id selector instead of ref
-    const heroElement = document.querySelector(".hero-section") as HTMLElement;
-    window.scrollTo({
-      top: heroElement?.offsetHeight || 0,
-      behavior: 'smooth'
-    });
-  }}
-/>
+        <HeroSection onScrollClick={handleScrollToMarketDashboard} />
         
         {/* Market Dashboard */}
         <div className="dark">
-          <MarketDashboard 
-            marketData={marketData}
-            topPerformers={topPerformers}
-            usMarketData={usMarketData}
-          />
+        <div ref={marketDashboardRef}>
+            <MarketDashboard
+              marketData={marketData}
+              topPerformers={topPerformers}
+              usMarketData={usMarketData}
+            />
+          </div>
         </div>
       </div>
       
