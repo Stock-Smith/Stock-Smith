@@ -27,7 +27,13 @@ if not CONNECTION_STRING:
     raise ValueError("MONGO_DB_ATLAS_URI environment variable is not set")
 
 # Connect to MongoDB using mongoengine
-connect(host=CONNECTION_STRING)
+client = connect(host=CONNECTION_STRING)
+DB_NAME = os.getenv('MONGO_DB_NAME')
+
+if not DB_NAME:
+    raise ValueError("MONGO_DB_NAME environment variable is not set")
+
+DB = client[DB_NAME]
 
 # PyMongo client for direct database access if needed
 MONGO_CLIENT = MongoClient(CONNECTION_STRING)
