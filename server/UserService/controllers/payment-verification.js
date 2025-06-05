@@ -51,17 +51,36 @@ class PaymentVerificationController {
     console.log(`Received message from topic ${topic} partition ${partition} with value ${message.value}`);
     const data = JSON.parse(message.value.toString());
     const { userId, subscriptionPlanId, startDate, endDate, subscriptionPlanType } = data;
-    const userSubcription = new UserSubscription({
-      userId,
-      subscriptionType: subscriptionPlanType,
-      subscription: {
-        status: "active",
-        startDate,
-        endDate,
-        currentPlanId: subscriptionPlanId,
-      }
+    const userSubscription = await UserSubscription.findOne({
+      userId
     });
-    await userSubcription.save();
+    if (userSubscription) {
+      console.log("User subscription already exists for user:", userId);
+      // Update existing subscription
+      userSubscription.subscription.status = "active";
+      userSubscription.subscription.startDate = startDate;
+      userSubscription.subscription.endDate = endDate;
+      userSubscription.subscription.currentPlanId = subscriptionPlanId;
+      await userSubscription.save();
+      
+      console.log("User subscription updated successfully:", userSubscription);
+    }
+    else {
+      console.log("Creating new user subscription for user:", userId);
+      // Create a new user subscription
+      const userSubscription = new UserSubscription({
+        userId,
+        subscriptionType: subscriptionPlanType,
+        subscription: {
+          status: "active",
+          startDate,
+          endDate,
+          currentPlanId: subscriptionPlanId,
+        }
+      });
+      await userSubscription.save();
+      console.log("User subscription saved successfully:", userSubscription);
+    }
     console.log("User id ---------------------------------------------------------------------------------", userId);
     
     await KafkaProducer.connect();
