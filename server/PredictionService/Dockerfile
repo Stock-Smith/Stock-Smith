@@ -1,0 +1,37 @@
+FROM python:3.13.1
+
+# Set environment variables
+ENV IS_PRODUCTION=true
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY . .
+
+# Create a script to run both commands
+# RUN echo '#!/bin/bash\n\
+# cd /app/backend && python manage.py runserver 0.0.0.0:8007 & \
+# cd /app/backend && python manage.py consume_kafka' > /app/start.sh && \
+# chmod +x /app/start.sh
+
+RUN echo '#!/bin/bash\n\
+cd /app/backend && python manage.py runserver 0.0.0.0:8007' > /app/start.sh && \
+chmod +x /app/start.sh
+
+# Expose port 8007
+EXPOSE 8007
+
+# Run the start script
+CMD ["/app/start.sh"]

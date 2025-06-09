@@ -38,8 +38,14 @@ DB = client[DB_NAME]
 # PyMongo client for direct database access if needed
 MONGO_CLIENT = MongoClient(CONNECTION_STRING)
 
+KAFKA_DEVELOPMENT_SERVER = os.getenv('KAFKA_BROKERS_DEV', 'localhost:29092') # Default for local dev
+KAFKA_PRODUCTION_SERVER = os.getenv('KAFKA_BROKERS_PROD', 'kafka:9092') # Example for Docker Compose
+
+IS_PRODUCTION = os.getenv('IS_PRODUCTION', 'false').lower() == 'true' # Better boolean conversion
+
+KAFKA_BOOTSTRAP_SERVERS = KAFKA_PRODUCTION_SERVER if IS_PRODUCTION else KAFKA_DEVELOPMENT_SERVER
+
 KAFKA_PREDICTION_TOPIC = os.getenv('KAFKA_PREDICTION_TOPIC')
-KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS')
 KAFKA_CONSUMER_GROUP_ID = os.getenv('KAFKA_CONSUMER_GROUP_ID')
 
 # Quick-start development settings - unsuitable for production
@@ -51,7 +57,8 @@ SECRET_KEY = 'django-insecure-oz7z@o)hciz(8fdc(=t^=87jptqh&#hptk4l2&qw$ls1m0hf!!
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS_str = os.getenv('ALLOWED_HOSTS', 'prediction-service,localhost,127.0.0.1')
+ALLOWED_HOSTS = ALLOWED_HOSTS_str.split(',')
 
 
 # Application definition
@@ -159,7 +166,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
+        "LOCATION": "redis://redis-service:6379/1",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }

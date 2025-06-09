@@ -10,7 +10,6 @@ from mongoengine import connect
 from .models import UserPrediction
 from .ml_model.PredictSuperCode import predict
 
-from .kafka_producer import send_to_kafka
 
 
 # Connect to MongoDB
@@ -81,7 +80,6 @@ class UserPredictionView(APIView):
                 "ticker": ticker
             }
             # Send data to Kafka
-            send_to_kafka('user_predictions', kafka_data)
             return Response({"message": "Data sent to Kafka successfully"}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

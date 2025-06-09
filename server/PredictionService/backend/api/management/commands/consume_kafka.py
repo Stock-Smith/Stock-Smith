@@ -11,8 +11,11 @@ user_prediction_collection = settings.DB['user_prediction']
 
 class Command(BaseCommand):
     help = 'Consume Kafka messages from prediction topic'
+
     
     def handle(self, *args, **kwargs):
+        self.stdout.write("Starting Kafka consumer...")
+        self.stdout.write(f"Using Kafka bootstrap servers: {settings.KAFKA_BOOTSTRAP_SERVERS}")
         conf = {
             'bootstrap.servers': settings.KAFKA_BOOTSTRAP_SERVERS,
             'group.id': settings.KAFKA_CONSUMER_GROUP_ID,
