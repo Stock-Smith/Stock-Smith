@@ -5,7 +5,7 @@ from datetime import datetime
 
 from django.conf import settings
 
-from api.models import UserPrediction, SubscriptionDetails
+from api.models import UserPrediction, SubscriptionDetails, PredictionUsage
 
 user_prediction_collection = settings.DB['user_prediction']
 
@@ -46,7 +46,7 @@ class Command(BaseCommand):
                 data = json.loads(message_value)
 
                 user_id = data.get('userId')
-                subscription_plan_id = data.get('subscriptionPlanId')
+                subscription_plan_id = data.get('subscriptionPlanId', None)
                 start_date = data.get('startDate')
                 end_date = data.get('endDate')
                 subscription_plan_type = data.get('subscriptionPlanType')
@@ -95,8 +95,10 @@ class Command(BaseCommand):
                 else:
                     # Create new UserPrediction
                     self.stdout.write(f"Creating new UserPrediction for user_id: {user_id}")
+                    prediction_usage = PredictionUsage()
                     user_prediction_collection.insert_one({
                         'user_id': user_id,
+                        'prediction_usage': prediction_usage.to_mongo(),
                         'subscription_details': subscription_details_instance.to_mongo(),
                         'created_at': datetime.now(),
                         'updated_at': datetime.now()
