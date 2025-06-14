@@ -10,6 +10,8 @@ services:
       - user-service
       - news-service
       - payment-service
+      - authentication-service
+      - prediction-service
     networks:
       - app-network
   # Zookeeper service (required for Kafka)
@@ -33,7 +35,6 @@ services:
       zookeeper: 
         condition: service_started 
     ports:
-      - "9092:9092"
       - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
@@ -85,8 +86,10 @@ services:
     build:
       context: ./UserService
     restart: always
-    ports:
-      - "8001:8001"
+    # ports:
+    #   - "8001:8001"
+    expose:
+      - "8001"
     env_file:
       - ./UserService/.env
     depends_on:
@@ -99,8 +102,10 @@ services:
     build:
       context: ./NewsService  
     restart: always
-    ports:
-      - "8002:8002"
+    # ports:
+    #   - "8002:8002"
+    expose:
+      - "8002"
     env_file:
       - ./NewsService/.env
     depends_on:
@@ -112,8 +117,10 @@ services:
     build:
       context: ./PaymentService
     restart: always
-    ports:
-      - "8003:8003"
+    # ports:
+    #   - "8003:8003"
+    expose:
+      - "8003"
     env_file:
       - ./PaymentService/.env
     depends_on:
@@ -125,8 +132,10 @@ services:
     build: 
       context: ./AuthenticationService
     restart: always
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"
+    expose:
+      - "8000"
     env_file:
       - ./AuthenticationService/.env
     networks:
@@ -136,8 +145,10 @@ services:
     build:
       context: ./PredictionService
     restart: always
-    ports:
-      - "8007:8007"
+    # ports:
+    #   - "8007:8007"
+    expose:
+      - "8007"
     env_file:
       - ./PredictionService/backend/.env
     depends_on:
