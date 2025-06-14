@@ -2,15 +2,21 @@ FROM python:3.13.1
 
 # Set environment variables
 ENV IS_PRODUCTION=true
+ENV PYTHONUNBUFFERED=1
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
+# RUN apt-get update && apt-get install -y \
+#     build-essential \
+#     && rm -rf /var/lib/apt/lists/*
+
 RUN apt-get update && apt-get install -y \
     build-essential \
+    supervisor \
     && rm -rf /var/lib/apt/lists/*
-
+    
 # Copy requirements file
 COPY requirements.txt .
 
@@ -26,12 +32,14 @@ COPY . .
 # cd /app/backend && python manage.py consume_kafka' > /app/start.sh && \
 # chmod +x /app/start.sh
 
-RUN echo '#!/bin/bash\n\
-cd /app/backend && python manage.py runserver 0.0.0.0:8007' > /app/start.sh && \
-chmod +x /app/start.sh
+# RUN echo '#!/bin/bash\n\
+# cd /app/backend && python manage.py runserver 0.0.0.0:8007' > /app/start.sh && \
+# chmod +x /app/start.sh
+
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Expose port 8007
 EXPOSE 8007
 
-# Run the start script
-CMD ["/app/start.sh"]
+# Run supervisor
+CMD ["/usr/bin/supervisord"]
