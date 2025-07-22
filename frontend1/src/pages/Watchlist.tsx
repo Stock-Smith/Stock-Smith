@@ -321,65 +321,56 @@ const Watchlist = () => {
   // Remove stock from watchlist
   const removeStock = async (tickerToRemove: string) => {
     if (!activeWatchlist) return;
-    
     const tickerUpper = tickerToRemove.toUpperCase();
-    
+  
     try {
-      // Since there's no direct API to remove a stock, we'll update the watchlist with all stocks except the one to remove
-      const updatedStocks = activeWatchlist.stocks.filter(stock => stock !== tickerUpper);
-      
-      const response = await fetch('http://localhost/api/v1/user/add-to-watchlist', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${getAuthToken()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          watchlistId: activeWatchlist.id,
-          stocksSymbols: updatedStocks.map(s => s.toLowerCase())
-        })
-      });
-      
+      const response = await fetch(
+        `http://localhost/api/v1/user/delete-stock?watchlistID=${activeWatchlist.id}&stockSymbol=${tickerUpper.toLowerCase()}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${getAuthToken()}`
+          }
+        }
+      );
+  
       if (!response.ok) {
         throw new Error(`Failed to remove stock: ${response.status} ${response.statusText}`);
       }
-      
-      // Update local state
+  
+      // Update local watchlists state to remove the stock
+      const updatedStocks = activeWatchlist.stocks.filter(stock => stock !== tickerUpper);
       const updatedWatchlists = watchlists.map((watchlist, index) => {
         if (index === activeWatchlistIndex) {
-          return {
-            ...watchlist,
-            stocks: updatedStocks
-          };
+          return { ...watchlist, stocks: updatedStocks };
         }
         return watchlist;
       });
-      
       setWatchlists(updatedWatchlists);
-      
-      // Unsubscribe if connected
+  
+      // Unsubscribe from socket updates if connected
       if (socket && isConnected) {
         console.log('Unsubscribing from removed stock:', tickerUpper);
         socket.emit('unsubscribe', [tickerUpper]);
       }
-      
-      // Remove from price data
+  
+      // Remove price data for the removed stock
       setPriceData(prevData => {
         const newData = { ...prevData };
         delete newData[tickerUpper];
         return newData;
       });
-      
-      // Update selected stock if needed
+  
+      // If selected stock was removed, update to next available or empty
       if (selectedStock === tickerUpper) {
-        const nextStock = updatedStocks[0] || '';
-        setSelectedStock(nextStock);
+        setSelectedStock(updatedStocks[0] || '');
       }
     } catch (err) {
       console.error('Error removing stock:', err);
       alert(err instanceof Error ? err.message : 'Failed to remove stock');
     }
   };
+  
   
   // Fallback fetch function for when socket data is unavailable
   const fetchStockDataFallback = async (ticker: string) => {

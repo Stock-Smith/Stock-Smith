@@ -12,30 +12,32 @@ import { getAllTopics, getAllTickers } from '../lib/mockData';
 
 interface FilterPanelProps {
   onApplyFilters: (filters: NewsQueryParams) => void;
+  hideTicker?: boolean;
+  hideTopics?: boolean;
 }
 
-const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters }) => {
+const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters, hideTicker, hideTopics }) => {
   const [tickers, setTickers] = useState('');
   const [topics, setTopics] = useState('');
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
   const [sort, setSort] = useState<SortOption>('LATEST');
   const [limit, setLimit] = useState<number>(10);
-  
+
   // Get all available topics and tickers for autocomplete
   const availableTopics = getAllTopics();
   const availableTickers = getAllTickers();
 
   const handleApplyFilters = () => {
     const filters: NewsQueryParams = {
-      tickers: tickers || undefined,
-      topics: topics || undefined,
+      ...(hideTicker ? {} : { tickers: tickers || undefined }),
+      ...(hideTopics ? {} : { topics: topics || undefined }),
       time_from: fromDate ? formatDateForQuery(fromDate) : undefined,
       time_to: toDate ? formatDateForQuery(toDate) : undefined,
       sort,
       limit,
     };
-    
+
     onApplyFilters(filters);
   };
 
@@ -46,7 +48,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters }) => {
     setToDate(undefined);
     setSort('LATEST');
     setLimit(10);
-    
+
     onApplyFilters({
       sort: 'LATEST',
       limit: 10
@@ -56,8 +58,8 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters }) => {
   // Calculate active filters count for badge
   const getActiveFilterCount = () => {
     let count = 0;
-    if (tickers) count++;
-    if (topics) count++;
+    if (!hideTicker && tickers) count++;
+    if (!hideTopics && topics) count++;
     if (fromDate) count++;
     if (toDate) count++;
     if (sort !== 'LATEST') count++;
@@ -82,59 +84,63 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="space-y-2">
-          <Label htmlFor="tickers" className="text-sm font-medium text-gray-300">Tickers</Label>
-          <div className="relative">
-            <Input
-              id="tickers"
-              value={tickers}
-              onChange={(e) => setTickers(e.target.value)}
-              placeholder="AAPL, TSLA, BTC"
-              className="pr-10 h-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
-              list="ticker-options"
-            />
-            <datalist id="ticker-options">
-              {availableTickers.map((ticker) => (
-                <option key={ticker} value={ticker} />
-              ))}
-            </datalist>
-            {tickers ? (
-              <XCircle 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-white cursor-pointer" 
-                onClick={() => setTickers('')}
+        {!hideTicker && (
+          <div className="space-y-2">
+            <Label htmlFor="tickers" className="text-sm font-medium text-gray-300">Tickers</Label>
+            <div className="relative">
+              <Input
+                id="tickers"
+                value={tickers}
+                onChange={(e) => setTickers(e.target.value)}
+                placeholder="AAPL, TSLA, BTC"
+                className="pr-10 h-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
+                list="ticker-options"
               />
-            ) : (
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            )}
+              <datalist id="ticker-options">
+                {availableTickers.map((ticker) => (
+                  <option key={ticker} value={ticker} />
+                ))}
+              </datalist>
+              {tickers ? (
+                <XCircle 
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-white cursor-pointer" 
+                  onClick={() => setTickers('')}
+                />
+              ) : (
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="space-y-2">
-          <Label htmlFor="topics" className="text-sm font-medium text-gray-300">Topics</Label>
-          <div className="relative">
-            <Input
-              id="topics"
-              value={topics}
-              onChange={(e) => setTopics(e.target.value)}
-              placeholder="Blockchain, Finance"
-              className="pr-10 h-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
-              list="topic-options"
-            />
-            <datalist id="topic-options">
-              {availableTopics.map((topic) => (
-                <option key={topic} value={topic} />
-              ))}
-            </datalist>
-            {topics ? (
-              <XCircle 
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-white cursor-pointer" 
-                onClick={() => setTopics('')}
+        {!hideTopics && (
+          <div className="space-y-2">
+            <Label htmlFor="topics" className="text-sm font-medium text-gray-300">Topics</Label>
+            <div className="relative">
+              <Input
+                id="topics"
+                value={topics}
+                onChange={(e) => setTopics(e.target.value)}
+                placeholder="Blockchain, Finance"
+                className="pr-10 h-10 bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 focus:border-blue-500 focus:ring-blue-500"
+                list="topic-options"
               />
-            ) : (
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            )}
+              <datalist id="topic-options">
+                {availableTopics.map((topic) => (
+                  <option key={topic} value={topic} />
+                ))}
+              </datalist>
+              {topics ? (
+                <XCircle 
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 hover:text-white cursor-pointer" 
+                  onClick={() => setTopics('')}
+                />
+              ) : (
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="space-y-2">
           <Label className="text-sm font-medium text-gray-300">Date Range</Label>
@@ -233,7 +239,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ onApplyFilters }) => {
         <Button 
           variant="outline" 
           onClick={handleResetFilters}
-          className="text-gray-300 border-gray-700 hover:bg-gray-800 hover:text-white transition-colors"
+          className="text-gray-600 border-gray-700 hover:bg-gray-800 hover:text-white transition-colors"
           disabled={!activeFilterCount}
         >
           Reset

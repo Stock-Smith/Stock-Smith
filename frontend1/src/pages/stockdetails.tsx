@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDown, ArrowUp, DollarSign, Building, Globe, BarChart3 } from "lucide-react";
 import { TradingViewWidget } from "../components/TradingViewWidget";
 import { MOCK_STOCK_DATA, formatNumber, formatPercentage, StockData } from "../lib/StockUtils";
+import StockNews from './StockNews';  
 
 interface StockDetailPageProps {
   ticker?: string;
@@ -495,9 +496,7 @@ export const StockDetailPage: React.FC<StockDetailPageProps> = ({ ticker = "AAPL
                 {/* News content placeholder - this would be populated with real news data */}
                 <div className="space-y-6" id="stock-news-container">
                   {/* This div will be populated with news data */}
-                  <div className="p-8 border border-dashed border-gray-700 rounded-lg flex items-center justify-center">
-                    <p className="text-gray-400 text-center">News content will be loaded here</p>
-                  </div>
+                  <StockNews ticker={ticker} /> 
                 </div>
               </CardContent>
             </Card>

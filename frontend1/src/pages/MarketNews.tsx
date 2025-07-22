@@ -15,12 +15,21 @@ const News = () => {
   const fetchNews = async (params: NewsQueryParams = {}) => {
     setLoading(true);
     setError(null);
-
+  
     try {
-      // Use the ticker from params or default to AAPL
-      const ticker = params.tickers?.toUpperCase() || 'AAPL';
+      // Build URL parameters
+      const urlParams = new URLSearchParams();
       
-      const response = await fetch(`http://localhost/api/v1/news/market-news?ticker=${ticker}`);
+      // const ticker = params.tickers?.toUpperCase() || 'AAPL';
+      // urlParams.append('tickers', ticker);
+      if (params.tickers) urlParams.append('tickers', params.tickers);
+      if (params.topics) urlParams.append('topics', params.topics);
+      if (params.time_from) urlParams.append('time_from', params.time_from);
+      if (params.time_to) urlParams.append('time_to', params.time_to);
+      if (params.sort) urlParams.append('sort', params.sort);
+      if (params.limit) urlParams.append('limit', params.limit.toString());
+      
+      const response = await fetch(`http://localhost/api/v1/news/market-news?${urlParams.toString()}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch news');
@@ -28,53 +37,8 @@ const News = () => {
       
       const data = await response.json();
       
-      // Apply additional filters
-      let filteredNews = data;
-      
-      // Filter by topics if provided
-      if (params.topics) {
-        const topicList = params.topics.split(',').map(t => t.trim());
-        filteredNews = filteredNews.filter((item: NewsItem) => 
-          item.topics.some((t: {topic: string}) => 
-            topicList.includes(t.topic)
-          )
-        );
-      }
-      
-      // Filter by date range if provided
-      if (params.time_from) {
-        filteredNews = filteredNews.filter((item: NewsItem) => 
-          item.time_published >= params.time_from!
-        );
-      }
-      
-      if (params.time_to) {
-        filteredNews = filteredNews.filter((item: NewsItem) => 
-          item.time_published <= params.time_to!
-        );
-      }
-      
-      // Sort the news
-      if (params.sort) {
-        switch (params.sort) {
-          case 'LATEST':
-            filteredNews.sort((a: NewsItem, b: NewsItem) => 
-              b.time_published.localeCompare(a.time_published)
-            );
-            break;
-          case 'SENTIMENT':
-            filteredNews.sort((a: NewsItem, b: NewsItem) => 
-              b.overall_sentiment_score - a.overall_sentiment_score
-            );
-            break;
-        }
-      }
-      
-      // Limit results
-      const limit = params.limit || 15;
-      filteredNews = filteredNews.slice(0, limit);
-      
-      setNews(filteredNews);
+      // Remove client-side filtering since backend should handle it
+      setNews(data);
       setLoading(false);
     } catch (err) {
       setError('Failed to fetch news. Please try again later.');
@@ -82,6 +46,7 @@ const News = () => {
       console.error(err);
     }
   };
+  
 
   useEffect(() => {
     fetchNews({ sort: 'LATEST', limit: 15 });

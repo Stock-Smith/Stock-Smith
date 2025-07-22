@@ -102,8 +102,17 @@ const StockPredictionPage = ({ ticker = 'AAPL' }: { ticker?: string }) => {
       // }, 1500);
 
       // Uncomment for real API call
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost/api/v1/prediction?ticker=${localTicker}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
       
-      const response = await fetch(`http://127.0.0.1:8007/api/prediction_price?ticker=${localTicker}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch prediction data');
