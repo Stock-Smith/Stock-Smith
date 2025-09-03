@@ -7,6 +7,7 @@ A comprehensive stock market analysis and portfolio management application.
 
 - [About The Project](#about-the-project)
 - [Features](#features)
+- [Architecture](#architecture)
 - [Installation](#installation)
 - [Running the Application](#running-the-application)
 - [Authors](#authors)
@@ -24,6 +25,10 @@ Stock-Smith is a full-stack web application designed to provide users with a pow
 - **User Authentication:** Secure user accounts for personalized portfolio management.
 - **Stock Prediction:** Utilizes a machine learning model to provide future stock price predictions.
 - **Market Dashboard:** A comprehensive overview of the market's performance.
+
+## Architecture
+
+A detailed explanation of the project architecture can be found in the [Architecture document](./docs/architecture.md).
 
 ## Installation
 
