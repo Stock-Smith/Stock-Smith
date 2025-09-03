@@ -144,38 +144,81 @@ sequenceDiagram
 
 ## 5. Database Schema (High-level)
 
-The primary database is MongoDB, a NoSQL database that provides flexibility for storing user and application data.
+The primary database is MongoDB, a NoSQL database that provides flexibility for storing user and application data across all services.
 
-**Key Collections:**
+**Key Collections (MongoDB):**
 
--   **users:**
+-   **users (from AuthenticationService):**
     -   `_id`
-    -   `username`
+    -   `name`
     -   `email`
     -   `password` (hashed)
-    -   `createdAt`
--   **portfolios:**
+    -   `isMfaActive`
+    -   `mfaSecret`
+    -   `resetPasswordToken`
+    -   `resetPasswordExpire`
+
+-   **holdings (from UserService):**
+    -   `_id`
+    -   `userId` (reference to users)
+    -   `holdings` (array of stock objects)
+        -   `ticker`
+        -   `investedPrice`
+        -   `investedQuantity`
+        -   `currentQuantity`
+        -   `purchaseDate`
+
+-   **watchlists (from UserService):**
     -   `_id`
     -   `userId` (reference to users)
     -   `name`
-    -   `holdings` (array of stock objects)
-        -   `stockSymbol`
-        -   `quantity`
-        -   `purchasePrice`
--   **transactions:**
+    -   `description`
+    -   `stocksSymbols` (array of strings)
+
+-   **usersubscriptions (from UserService):**
     -   `_id`
-    -   `portfolioId` (reference to portfolios)
-    -   `stockSymbol`
-    -   `type` (buy/sell)
-    -   `quantity`
-    -   `price`
-    -   `timestamp`
--   **predictions:**
+    -   `userId` (reference to users)
+    -   `subscriptionType` ('free', 'premium')
+    -   `subscription` (object)
+        -   `status` ('active', 'inactive')
+        -   `startDate`
+        -   `endDate`
+        -   `currentPlanId` (reference to subscriptionplans)
+
+-   **payments (from PaymentService):**
     -   `_id`
-    -   `stockSymbol`
-    -   `predictedPrice`
-    -   `date`
-    -   `modelId`
+    -   `userId` (reference to users)
+    -   `orderId`
+    -   `paymentId`
+    -   `planId` (reference to subscriptionplans)
+    -   `amount`
+    -   `status` ('pending', 'success', 'failed')
+    -   `paymentDate`
+
+-   **subscriptionplans (from PaymentService):**
+    -   `_id`
+    -   `name`
+    -   `type` ('free', 'premium')
+    -   `price` (object)
+        - `amount`
+        - `currency`
+        - `billingCycle` ('monthly', 'annually')
+    -   `features` (object)
+        - `dailyPredictionLimit`
+    -   `isActive`
+
+-   **userpredictions (from PredictionService):**
+    -   `_id`
+    -   `user_id` (reference to users)
+    -   `prediction_usage` (object)
+        -   `daily_usage`
+        -   `last_reset_date`
+    -   `subscription_details` (object)
+        -   `daily_limit`
+        -   `subscription_plan_id` (reference to subscriptionplans)
+        -   `subscription_plan_type`
+        -   `start_date`
+        -   `end_date`
 
 ## 6. Tech Stack Summary
 
